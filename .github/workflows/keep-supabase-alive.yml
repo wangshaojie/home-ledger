@@ -1,0 +1,37 @@
+name: keep-supabase-alive
+
+on:
+  # 每 3 天跑一次（远低于 7 天上限，留余量给网络抖动）
+  schedule:
+    - cron: '0 */72 * * *'  # 每 72 小时
+  # 允许手动触发
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping Supabase PostgREST
+        run: |
+          echo "[$(date -Iseconds)] Pinging Supabase..."
+          HTTP_STATUS=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
+            --max-time 30 \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/expenses?select=id&limit=1")
+
+          echo "HTTP $HTTP_STATUS"
+          if [ -f /tmp/resp.json ]; then
+            echo "Body (first 200 chars):"
+            head -c 200 /tmp/resp.json
+            echo ""
+          fi
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "✅ Supabase alive"
+            exit 0
+          else
+            echo "❌ Supabase not responding (HTTP $HTTP_STATUS)"
+            exit 1
+          fi
