@@ -47,7 +47,9 @@ jobs:
         #   VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Build main process (electron)
-        run: pnpm exec vite build --config vite.config.electron.ts || pnpm exec tsc -p tsconfig.electron.json
+        # 项目没有独立的 vite.config.electron.ts，主进程由 vite.config.ts + vite-plugin-electron
+        # 在 'Build renderer' 阶段一起处理。此处仅做类型检查（主进程 src 在 electron/）。
+        run: pnpm exec tsc -p tsconfig.electron.json
 
       - name: Package with electron-builder (NSIS + Portable)
         run: pnpm exec electron-builder --win nsis portable --x64 --publish always
