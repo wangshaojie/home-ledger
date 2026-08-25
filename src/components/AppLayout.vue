@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter, useRoute, RouterView } from 'vue-router'
 import { computed } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useFamilyStore } from '@/stores/family'
 
@@ -29,6 +30,19 @@ function go(name: string) {
 }
 
 async function logout() {
+  try {
+    await ElMessageBox.confirm(
+      '确定要退出当前账号吗？',
+      '退出登录',
+      {
+        type: 'warning',
+        confirmButtonText: '退出',
+        cancelButtonText: '取消'
+      }
+    )
+  } catch {
+    return
+  }
   await auth.logout()
   router.push({ name: 'login' })
 }
@@ -42,7 +56,7 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
     <aside class="sidebar">
       <div class="brand">
         <span class="brand-icon">🏠</span>
-        <span class="brand-text">家庭记账</span>
+        <span class="brand-text">{{ familyStore.family?.name || '家庭记账' }}</span>
       </div>
 
       <nav class="nav-list">

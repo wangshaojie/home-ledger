@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessageBox } from 'element-plus'
 import { notify } from '@/lib/notify'
 import { useAuthStore } from '@/stores/auth'
 
@@ -39,6 +40,20 @@ async function submit() {
 async function joinByInvite() {
   const code = (window.prompt('请输入 6 位邀请码') || '').trim().toUpperCase()
   if (!code) return
+  // v2026-08-25 加确认：误输入邀请码会直接换家庭，原始家庭数据不可见
+  try {
+    await ElMessageBox.confirm(
+      `将加入邀请码为 ${code} 的家庭。确认继续吗？`,
+      '加入家庭',
+      {
+        type: 'info',
+        confirmButtonText: '加入',
+        cancelButtonText: '取消'
+      }
+    )
+  } catch {
+    return
+  }
   submitting.value = true
   const r = await auth.joinFamilyByInvite(code)
   submitting.value = false

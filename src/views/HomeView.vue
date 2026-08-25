@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { useExpenseStore } from '@/stores/expense'
 import { useCategoryStore } from '@/stores/category'
@@ -9,6 +9,10 @@ import { useAuthStore } from '@/stores/auth'
 import { notify } from '@/lib/notify'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { displayNameOf } from '@/lib/displayName'
+import {
+  getRecentCategoryIds,
+  markCategoryUsed
+} from '@/lib/recentCategories'
 
 const store = useExpenseStore()
 const categoryStore = useCategoryStore()
@@ -20,6 +24,8 @@ const formVisible = ref(false)
 const filterVisible = ref(false)
 const editingId = ref<string | null>(null)
 
+const amountInputRef = ref<HTMLInputElement | null>(null)
+
 const form = ref({
   amount: '',
   categoryId: '',
@@ -30,6 +36,26 @@ const form = ref({
 })
 
 const isEditing = computed(() => editingId.value !== null)
+
+const recentCategoryIds = computed(() =>
+  getRecentCategoryIds(familyStore.family?.id)
+)
+
+const categoryOptions = computed(() => {
+  // 最近用过的置顶 + 其他按 sort_order 排，el-select 会按这个顺序展示
+  const map = new Map(categoryStore.items.map((c) => [c.id, c]))
+  const recents = recentCategoryIds.value
+    .map((id) => map.get(id))
+    .filter((c): c is NonNullable<typeof c> => !!c)
+  const recentSet = new Set(recentCategoryIds.value)
+  const others = categoryStore.items.filter((c) => !recentSet.has(c.id))
+  const all = [...recents, ...others]
+  return all.map((c) => ({
+    id: c.id,
+    label: `${c.icon}  ${c.name}`,
+    raw: c
+  }))
+})
 
 const filterRange = computed({
   get: () => store.filter.range,
@@ -70,6 +96,7 @@ function openForm() {
     note: ''
   }
   formVisible.value = true
+  nextTick(() => amountInputRef.value?.focus())
 }
 
 function openEdit(e: any) {
@@ -83,6 +110,11 @@ function openEdit(e: any) {
     note: e.note || ''
   }
   formVisible.value = true
+}
+
+function closeForm() {
+  formVisible.value = false
+  editingId.value = null
 }
 
 async function submitForm() {
@@ -114,8 +146,8 @@ async function submitForm() {
       note: form.value.note.trim().slice(0, 200)
     })
     if (r.ok) {
-      formVisible.value = false
-      editingId.value = null
+      markCategoryUsed(familyStore.family?.id, form.value.categoryId)
+      closeForm()
       notify.success(r.message)
     } else {
       notify.error(r.message)
@@ -131,7 +163,8 @@ async function submitForm() {
       note: form.value.note.trim().slice(0, 200)
     })
     if (r.ok) {
-      formVisible.value = false
+      markCategoryUsed(familyStore.family?.id, form.value.categoryId)
+      closeForm()
       notify.success(r.message)
     } else {
       notify.error(r.message)
@@ -288,28 +321,43 @@ function fmtMoney(n: number) {
       </div>
     </div>
 
-    <el-dialog v-model="formVisible" :title="isEditing ? '编辑账单' : '记一笔支出'" width="540px">
+    <el-dialog
+      v-model="formVisible"
+      :title="isEditing ? '编辑账单' : '记一笔支出'"
+      width="520px"
+      :close-on-click-modal="false"
+      @closed="closeForm"
+    >
       <el-form label-position="top">
         <el-form-item label="金额" required>
-          <el-input v-model="form.amount" placeholder="0.00" type="number" step="0.01" max="999999.99" size="large">
-            <template #prepend>¥</template>
+          <el-input
+            ref="amountInputRef"
+            v-model="form.amount"
+            placeholder="0.00"
+            type="number"
+            step="0.01"
+            max="999999.99"
+            size="large"
+          >
+            <template #prepend><span class="amount-prepend">¥</span></template>
           </el-input>
         </el-form-item>
 
         <el-form-item label="分类" required>
-          <div class="cat-grid">
-            <button
-              v-for="c in categoryStore.items"
+          <el-select
+            v-model="form.categoryId"
+            size="large"
+            style="width: 100%"
+            placeholder="选择分类"
+            filterable
+          >
+            <el-option
+              v-for="c in categoryOptions"
               :key="c.id"
-              class="cat-cell"
-              :class="{ active: form.categoryId === c.id }"
-              type="button"
-              @click="form.categoryId = c.id"
-            >
-              <span class="cat-icon-lg">{{ c.icon }}</span>
-              <span>{{ c.name }}</span>
-            </button>
-          </div>
+              :label="c.label"
+              :value="c.id"
+            />
+          </el-select>
         </el-form-item>
 
         <el-form-item label="支付账户" required>
@@ -349,7 +397,7 @@ function fmtMoney(n: number) {
       </el-form>
 
       <template #footer>
-        <el-button @click="formVisible = false; editingId = null">取消</el-button>
+        <el-button @click="closeForm">取消</el-button>
         <el-button
           type="primary"
           :disabled="!form.amount || !form.categoryId || !form.accountId || !form.memberId"
@@ -609,5 +657,110 @@ function fmtMoney(n: number) {
   font-size: 12px;
   color: #909399;
   margin-top: 4px;
+}
+
+/* === 分步弹框：Step 1 主表单 === */
+.amount-prepend {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-primary);
+  letter-spacing: 0;
+}
+
+.cat-pick-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cat-pick-btn:hover {
+  border-color: var(--color-primary);
+}
+.cat-pick-btn.empty {
+  color: #c0c4cc;
+}
+.cat-pick-btn.empty:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.cat-pick-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+.cat-pick-name {
+  font-size: 15px;
+  font-weight: 500;
+  flex: 1;
+  text-align: left;
+}
+.cat-pick-arrow {
+  color: #c0c4cc;
+  font-size: 14px;
+}
+
+/* === 分步弹框：Step 2 分类选择页 === */
+.cat-step {
+  max-height: 56vh;
+  overflow-y: auto;
+  padding: 4px 4px 8px;
+}
+.cat-section {
+  margin-bottom: 14px;
+}
+.cat-section:last-child {
+  margin-bottom: 0;
+}
+.cat-section-title {
+  font-size: 12px;
+  color: var(--color-text-soft);
+  font-weight: 500;
+  margin-bottom: 8px;
+  padding-left: 2px;
+}
+.cat-grid-6 {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+.cat-cell-sm {
+  border: 1px solid var(--color-border);
+  background: #fff;
+  padding: 10px 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-soft);
+  transition: all 0.12s;
+  min-height: 72px;
+  justify-content: center;
+}
+.cat-cell-sm:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+.cat-cell-sm.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+.cat-icon-md {
+  font-size: 22px;
+  line-height: 1;
+}
+.cat-name-sm {
+  font-size: 12px;
+  line-height: 1.2;
 }
 </style>

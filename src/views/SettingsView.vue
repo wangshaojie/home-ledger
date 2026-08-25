@@ -23,13 +23,15 @@ const savingFamily = ref(false)
 const editDisplayName = ref(auth.profile?.display_name || '')
 const savingDisplayName = ref(false)
 
-const reauthCode = ref('')
-const reauthSending = ref(false)
-const reauthCountdown = ref(0)
-const reauthVerified = ref(false)
+const resetSending = ref(false)
+const resetSent = ref(false)
+const otpCode = ref('')
+const verifyToken = ref('')
+const otpVerified = ref(false)
 const newPwd = ref('')
 const newPwd2 = ref('')
 const changingPwd = ref(false)
+const resendCountdown = ref(0)
 
 const showAddCategory = ref(false)
 const newCategoryName = ref('')
@@ -78,40 +80,46 @@ async function saveDisplayName() {
   }
 }
 
-async function sendReauthCode() {
-  if (reauthCountdown.value > 0) return
-  reauthSending.value = true
-  const r = await auth.sendReauthOtp()
-  reauthSending.value = false
+async function sendResetCode() {
+  if (resendCountdown.value > 0) return
+  resetSending.value = true
+  const r = await auth.startPasswordReset()
+  resetSending.value = false
   if (r.ok) {
     notify.success(r.message)
-    reauthCountdown.value = 60
+    resetSent.value = true
+    otpVerified.value = false
+    otpCode.value = ''
+    verifyToken.value = ''
+    resendCountdown.value = 60
     const t = setInterval(() => {
-      reauthCountdown.value--
-      if (reauthCountdown.value <= 0) clearInterval(t)
+      resendCountdown.value--
+      if (resendCountdown.value <= 0) clearInterval(t)
     }, 1000)
   } else {
     notify.error(r.message)
   }
 }
 
-async function verifyReauthCode() {
-  if (reauthCode.value.length !== 6) {
+async function verifyOtp() {
+  if (otpCode.value.length !== 6) {
     notify.error('请输入 6 位验证码')
     return
   }
-  const r = await auth.verifyReauthOtp(reauthCode.value)
-  if (r.ok) {
+  const r = await auth.verifyPasswordResetCode(otpCode.value)
+  if (r.ok && r.verifyToken) {
     notify.success(r.message)
-    reauthVerified.value = true
+    verifyToken.value = r.verifyToken
+    otpVerified.value = true
   } else {
     notify.error(r.message)
+    otpVerified.value = false
   }
 }
 
 async function changePassword() {
-  if (!reauthVerified.value) {
-    notify.error('请先完成身份验证')
+  if (!otpVerified.value || !verifyToken.value) {
+    notify.error('请先完成邮箱验证码验证')
     return
   }
   if (newPwd.value.length < 6 || newPwd.value.length > 20) {
@@ -123,13 +131,21 @@ async function changePassword() {
     return
   }
   changingPwd.value = true
-  const r = await auth.setPassword(newPwd.value)
+  const r = await auth.completePasswordReset(verifyToken.value, newPwd.value)
   changingPwd.value = false
   if (r.ok) {
-    reauthCode.value = ''
-    reauthVerified.value = false
+    notify.success('密码已更新，正在退出登录...')
+    // 清状态
+    resetSent.value = false
+    otpVerified.value = false
+    otpCode.value = ''
+    verifyToken.value = ''
     newPwd.value = newPwd2.value = ''
-    notify.success(r.message)
+    // 强制退出让用户用新密码重登
+    setTimeout(async () => {
+      await auth.logout()
+      router.push({ name: 'login' })
+    }, 1500)
   } else {
     notify.error(r.message)
   }
@@ -144,6 +160,22 @@ function copyInviteCode() {
 
 async function joinOtherFamily() {
   if (!inviteInput.value.trim()) return
+  // v2026-08-25 加确认：当前已有家庭时换家庭，原家庭数据将被 RLS 隔离（数据没删但你看不到）
+  // v1.2 没有"主动离开"流程，所以这一步必须让用户明确意识到
+  try {
+    await ElMessageBox.confirm(
+      `将加入邀请码为 ${inviteInput.value.trim().toUpperCase()} 的家庭。\n\n你将离开当前家庭（原家庭账单将不再可见，但数据仍保留在云端）。\n\n确认继续吗？`,
+      '切换家庭',
+      {
+        type: 'warning',
+        confirmButtonText: '确认切换',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+  } catch {
+    return
+  }
   const r = await auth.joinFamilyByInvite(inviteInput.value.trim().toUpperCase())
   if (r.ok) {
     notify.success(r.message)
@@ -197,8 +229,47 @@ function fmtDate(iso: string) {
 }
 
 async function logout() {
+  try {
+    await ElMessageBox.confirm(
+      '确定要退出当前账号吗？\n\n本地已开启「30 天免登录」时，退出后再次打开应用可免输入验证码。\n如需立即清除本机数据，请使用下方「清除本地数据」按钮。',
+      '退出登录',
+      {
+        type: 'warning',
+        confirmButtonText: '退出',
+        cancelButtonText: '取消'
+      }
+    )
+  } catch {
+    return
+  }
   await auth.logout()
   router.push({ name: 'login' })
+}
+
+async function wipeLocalData() {
+  try {
+    await ElMessageBox.confirm(
+      '将清除本机所有数据，包括登录信息、缓存的最近使用分类等。\n\n云端数据（账本/家庭/分类）不受影响，重新登录后仍可访问。\n\n确定要继续吗？',
+      '清除本地数据',
+      {
+        type: 'warning',
+        confirmButtonText: '清除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+  } catch {
+    return
+  }
+  const r = await auth.wipeAllLocalData()
+  if (r.ok) {
+    notify.success('本地数据已清除，3 秒后退出应用...')
+    setTimeout(() => {
+      window.close()
+    }, 3000)
+  } else {
+    notify.error(r.message)
+  }
 }
 </script>
 
@@ -242,50 +313,61 @@ async function logout() {
       <el-divider />
 
       <div class="section-sub">修改登录密码</div>
-      <p class="section-hint">为了安全，先用邮箱验证身份，再设置新密码。</p>
+      <p class="section-hint">通过邮箱 6 位验证码验证身份（桌面端 OTP 流程）。</p>
 
       <el-form label-position="top" :inline="false" class="pwd-form">
-        <el-form-item label="第 1 步：邮箱验证">
+        <el-form-item label="第 1 步：发送验证码到邮箱">
+          <div class="code-row">
+            <el-button
+              type="primary"
+              :loading="resetSending"
+              :disabled="resendCountdown > 0"
+              @click="sendResetCode"
+            >
+              {{ resendCountdown > 0 ? `${resendCountdown}s 后重发` : (resetSent ? '重新发送验证码' : '发送验证码') }}
+            </el-button>
+          </div>
+          <div class="hint" v-if="resetSent">
+            验证码已发到 <b>{{ auth.profile?.email }}</b>（5 分钟内有效）
+          </div>
+        </el-form-item>
+
+        <el-form-item label="第 2 步：输入 6 位验证码" v-if="resetSent">
           <div class="code-row">
             <el-input
-              v-model="reauthCode"
-              placeholder="6 位验证码"
+              v-model="otpCode"
+              placeholder="6 位数字"
               maxlength="6"
-              :disabled="reauthVerified"
+              :disabled="otpVerified"
             />
             <el-button
-              :disabled="reauthCountdown > 0 || reauthVerified"
-              :loading="reauthSending"
-              @click="sendReauthCode"
-            >
-              {{ reauthCountdown > 0 ? `${reauthCountdown}s 后重发` : (reauthVerified ? '已验证 ✓' : '发送验证码') }}
-            </el-button>
-            <el-button
-              v-if="!reauthVerified"
+              v-if="!otpVerified"
               type="primary"
-              :disabled="reauthCode.length !== 6"
-              @click="verifyReauthCode"
+              :disabled="otpCode.length !== 6"
+              @click="verifyOtp"
             >
               验证
             </el-button>
+            <el-button v-else disabled>已验证 ✓</el-button>
           </div>
-          <div class="hint">验证码会发到你的邮箱 <b>{{ auth.profile?.email }}</b>（5 分钟内有效）</div>
         </el-form-item>
 
-        <el-form-item label="第 2 步：新密码" :disabled="!reauthVerified">
-          <el-input v-model="newPwd" type="password" show-password placeholder="6-20 位" :disabled="!reauthVerified" />
-        </el-form-item>
-        <el-form-item label="确认新密码">
-          <el-input v-model="newPwd2" type="password" show-password placeholder="再次输入" :disabled="!reauthVerified" />
-        </el-form-item>
-        <el-button
-          type="primary"
-          :loading="changingPwd"
-          :disabled="!reauthVerified"
-          @click="changePassword"
-        >
-          修改密码
-        </el-button>
+        <template v-if="otpVerified">
+          <el-form-item label="第 3 步：新密码">
+            <el-input v-model="newPwd" type="password" show-password placeholder="6-20 位" />
+          </el-form-item>
+          <el-form-item label="确认新密码">
+            <el-input v-model="newPwd2" type="password" show-password placeholder="再次输入" />
+          </el-form-item>
+          <el-button
+            type="primary"
+            :loading="changingPwd"
+            :disabled="!newPwd || newPwd !== newPwd2"
+            @click="changePassword"
+          >
+            修改密码
+          </el-button>
+        </template>
       </el-form>
 
       <el-divider />
@@ -293,6 +375,18 @@ async function logout() {
       <el-button type="danger" plain @click="logout">
         <el-icon><SwitchButton /></el-icon>
         <span style="margin-left: 4px">退出登录</span>
+      </el-button>
+
+      <el-divider />
+
+      <div class="section-sub">本机数据</div>
+      <p class="section-hint">
+        清除本机所有数据，包括登录会话、显示名缓存、最近使用分类等。
+        <br />云端账本和家庭数据不受影响，重新登录后可继续访问。
+      </p>
+      <el-button type="danger" @click="wipeLocalData">
+        <el-icon><Delete /></el-icon>
+        <span style="margin-left: 4px">清除本地数据</span>
       </el-button>
     </div>
 
