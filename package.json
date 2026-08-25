@@ -1,6 +1,6 @@
 {
   "name": "home-ledger",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "家庭支出记账软件 - Windows 桌面端",
   "main": "dist-electron/main.js",
   "author": "home-ledger",
@@ -8,9 +8,11 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build && electron-builder",
-    "build:win": "vue-tsc -b && vite build && electron-builder --win --x64",
-    "build:no-pack": "vue-tsc -b && vite build",
+    "build": "pnpm run build:no-pack && electron-builder --win portable --x64",
+    "build:win": "pnpm run build:no-pack && electron-builder --win portable --x64",
+    "build:win:portable": "pnpm run build:no-pack && electron-builder --win portable --x64",
+    "build:win:nsis": "pnpm run build:no-pack && electron-builder --win nsis --x64",
+    "build:no-pack": "pnpm run type-check && vite build",
     "start": "electron .",
     "type-check": "vue-tsc --noEmit"
   },
@@ -30,6 +32,8 @@
     "@vitejs/plugin-vue": "^5.1.4",
     "electron": "^32.1.2",
     "electron-builder": "^25.0.5",
+    "electron-updater": "^6.8.9",
+    "png-to-ico": "^3.0.2",
     "typescript": "^5.6.2",
     "vite": "^5.4.8",
     "vite-plugin-electron": "^0.28.8",
@@ -39,28 +43,56 @@
   "build": {
     "appId": "com.homeledger.app",
     "productName": "家庭记账",
+    "copyright": "Copyright © 2026 home-ledger",
     "directories": {
-      "output": "release/${version}"
+      "output": "release/${version}",
+      "buildResources": "build"
     },
     "files": [
-      "dist",
-      "dist-electron"
+      "dist/**/*",
+      "dist-electron/**/*"
     ],
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "portable",
           "arch": [
             "x64"
           ]
         }
       ],
+      "icon": "build/icon.ico",
       "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable-${arch}.${ext}",
+      "requestExecutionLevel": "user"
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "deleteAppDataOnUninstall": false
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "家庭记账",
+      "deleteAppDataOnUninstall": true,
+      "language": "2052",
+      "include": "build/installer.nsh"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "wangshaojie",
+      "repo": "home-ledger",
+      "releaseType": "release",
+      "vPrefixedTagName": false,
+      "publishAutoUpdate": true
     }
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
   }
 }
