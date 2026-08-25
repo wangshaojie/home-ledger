@@ -7,7 +7,6 @@ import { useCategoryStore } from '@/stores/category'
 import { useExpenseStore } from '@/stores/expense'
 import { useRouter } from 'vue-router'
 import { notify } from '@/lib/notify'
-import { isSupabaseConfigured } from '@/lib/supabase'
 import { displayNameOf } from '@/lib/displayName'
 
 const auth = useAuthStore()
@@ -40,10 +39,55 @@ const newCategoryIcon = ref('📦')
 const showJoinFamily = ref(false)
 const inviteInput = ref('')
 
+const showAddMember = ref(false)
+const addMemberName = ref('')
+const addMemberType = ref<'child' | 'pet'>('child')
+const addingMember = ref(false)
+
 const familyMembers = computed(() => familyStore.members)
 const isCreator = computed(() =>
   familyStore.family?.created_by === (auth.user?.id || auth.profile?.id)
 )
+
+function typeIcon(t: string) {
+  if (t === 'adult') return '👤'
+  if (t === 'child') return '🧒'
+  if (t === 'pet') return '🐾'
+  return '·'
+}
+
+async function confirmAddMember() {
+  const name = addMemberName.value.trim()
+  if (!name) return
+  addingMember.value = true
+  const r = await familyStore.addMember(name, addMemberType.value)
+  addingMember.value = false
+  if (r.ok) {
+    notify.success(r.message || '已添加')
+    addMemberName.value = ''
+    addMemberType.value = 'child'
+    showAddMember.value = false
+    // 强制从 DB 重新拉,保证其它页面(HomeView 消费成员下拉)立即看到
+    await familyStore.load()
+  } else {
+    notify.error(r.message || '添加失败')
+  }
+}
+
+async function removeMember(id: string, name: string) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除「${name}」吗？关联的账单不会被删除，但成员统计里会看不到 ta。`,
+      '删除成员',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  const r = await familyStore.removeMember(id)
+  if (r.ok) notify.success(r.message || '已删除')
+  else notify.error(r.message || '删除失败')
+}
 
 async function saveFamilyName() {
   if (!editFamilyName.value.trim()) {
@@ -421,27 +465,69 @@ async function wipeLocalData() {
       <div v-for="m in familyMembers" :key="m.id" class="member-row">
         <div class="member-info">
           <div class="member-name">
-            {{ displayNameOf(m) }}
-            <span v-if="m.id === familyStore.family?.created_by" class="role-tag">创建者</span>
-            <span v-else-if="m.id === auth.user?.id" class="role-tag self">我</span>
+            <span class="member-type-icon">{{ typeIcon(m.type) }}</span>
+            {{ m.name }}
+            <span v-if="m.linked_profile_id && m.linked_profile_id === familyStore.family?.created_by" class="role-tag">创建者</span>
+            <span v-else-if="m.linked_profile_id === auth.user?.id" class="role-tag self">我</span>
+            <span v-else-if="m.type === 'child'" class="role-tag child">小孩</span>
+            <span v-else-if="m.type === 'pet'" class="role-tag pet">宠物</span>
           </div>
-          <div class="member-email">{{ m.email }} · {{ fmtDate(m.joined_at) }} 加入</div>
+          <div class="member-email">
+            <span v-if="m.linked_profile_id">已关联账号 · {{ fmtDate(m.created_at) }} 加入</span>
+            <span v-else>未关联账号 · 父母代记账</span>
+          </div>
         </div>
-        <el-button v-if="m.id !== familyStore.family?.created_by" text type="danger" size="small" disabled>
-          移出
+        <el-button
+          v-if="!m.linked_profile_id"
+          text
+          type="danger"
+          size="small"
+          @click="removeMember(m.id, m.name)"
+        >
+          删除
         </el-button>
       </div>
       <div v-if="familyMembers.length === 0" class="empty-mini">暂无成员</div>
 
       <el-button
+        type="primary"
+        plain
+        style="margin-top: 12px"
+        @click="showAddMember = true"
+      >
+        添加成员（小孩 / 宠物）
+      </el-button>
+
+      <el-button
         type="warning"
         plain
-        style="margin-top: 16px"
+        style="margin-top: 16px; margin-left: 8px"
         @click="showJoinFamily = true"
       >
         切换 / 加入其他家庭
       </el-button>
     </div>
+
+    <el-dialog v-model="showAddMember" title="添加成员" width="400px">
+      <el-form label-position="top">
+        <el-form-item label="类型">
+          <el-radio-group v-model="addMemberType">
+            <el-radio-button value="child">小孩</el-radio-button>
+            <el-radio-button value="pet">宠物</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="名字">
+          <el-input v-model="addMemberName" :placeholder="addMemberType === 'pet' ? '如：旺财' : '如：小明'" maxlength="20" show-word-limit />
+          <div class="hint">未关联账号。记账时选择该成员作为"消费归属"，钱算 ta 头上（也支持你付钱给 ta 买东西）</div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showAddMember = false">取消</el-button>
+        <el-button type="primary" :disabled="!addMemberName.trim() || addingMember" :loading="addingMember" @click="confirmAddMember">
+          添加
+        </el-button>
+      </template>
+    </el-dialog>
 
     <div class="section">
       <div class="section-title">分类管理</div>

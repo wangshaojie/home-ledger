@@ -7,8 +7,8 @@ import { usePaymentAccountStore } from '@/stores/paymentAccount'
 import { useFamilyStore } from '@/stores/family'
 import { useAuthStore } from '@/stores/auth'
 import { notify } from '@/lib/notify'
-import { isSupabaseConfigured } from '@/lib/supabase'
 import { displayNameOf } from '@/lib/displayName'
+import MemberStatsPanel from '@/components/MemberStatsPanel.vue'
 import {
   getRecentCategoryIds,
   markCategoryUsed
@@ -23,6 +23,13 @@ const auth = useAuthStore()
 const formVisible = ref(false)
 const filterVisible = ref(false)
 const editingId = ref<string | null>(null)
+const listEl = ref<HTMLElement | null>(null)
+
+// 成员统计点击柱子 → 跳到列表 + 预填 memberIds（MemberStatsPanel emit）
+async function onJumpToList(memberId: string) {
+  await nextTick()
+  listEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 const amountInputRef = ref<HTMLInputElement | null>(null)
 
@@ -31,6 +38,7 @@ const form = ref({
   categoryId: '',
   accountId: '',
   memberId: '',
+  payerId: '',
   spentAt: new Date(),
   note: ''
 })
@@ -62,6 +70,56 @@ const filterRange = computed({
   set: (v: any) => (store.filter.range = v)
 })
 
+// 当前生效的筛选条件 chips（时间维度走顶部 radio,这里只展示成员/分类/金额）
+const activeFilterChips = computed(() => {
+  const chips: { key: string; label: string; onClose: () => void }[] = []
+  // 成员
+  for (const mid of store.filter.memberIds) {
+    const m = familyStore.members.find((x) => x.id === mid)
+    const label = m ? displayNameOf(m) : mid.slice(0, 8)
+    chips.push({
+      key: 'member-' + mid,
+      label: '成员: ' + label,
+      onClose: () => {
+        store.filter.memberIds = store.filter.memberIds.filter((x) => x !== mid)
+      }
+    })
+  }
+  // 分类
+  for (const cid of store.filter.categoryIds) {
+    const c = categoryStore.items.find((x) => x.id === cid)
+    const label = c ? c.name : cid.slice(0, 8)
+    chips.push({
+      key: 'cat-' + cid,
+      label: '分类: ' + label,
+      onClose: () => {
+        store.filter.categoryIds = store.filter.categoryIds.filter((x) => x !== cid)
+      }
+    })
+  }
+  // 金额
+  if (store.filter.minAmount != null || store.filter.maxAmount != null) {
+    const min = store.filter.minAmount ?? '不限'
+    const max = store.filter.maxAmount ?? '不限'
+    chips.push({
+      key: 'amount',
+      label: `金额: ¥${min} ~ ¥${max}`,
+      onClose: () => {
+        store.filter.minAmount = undefined
+        store.filter.maxAmount = undefined
+      }
+    })
+  }
+  return chips
+})
+
+function clearAllFilters() {
+  store.filter.memberIds = []
+  store.filter.categoryIds = []
+  store.filter.minAmount = undefined
+  store.filter.maxAmount = undefined
+}
+
 const memberOptions = computed(() =>
   familyStore.members.map((m) => ({
     id: m.id,
@@ -78,10 +136,25 @@ const accountOptions = computed(() =>
 
 const currentUserId = computed(() => auth.user?.id || auth.profile?.id || '')
 
-onMounted(() => {
+/**
+ * v1.1 找到当前登录用户对应的 family_member 行（用 linked_profile_id 匹配）
+ * 记账表单的"消费归属"默认选这个
+ */
+const currentFamilyMember = computed(() => {
+  return familyStore.members.find((m) => m.linked_profile_id === auth.user?.id) || null
+})
+const currentFamilyMemberId = computed(() => currentFamilyMember.value?.id || '')
+
+onMounted(async () => {
+  // 每次进入首页都重新拉一次成员列表,保证最新（SettingsView 加成员后能立即反映）
+  await familyStore.load()
   // 防御：如果 memberId 没值且家庭成员已加载，默认选自己
-  if (!form.value.memberId && currentUserId.value) {
-    form.value.memberId = currentUserId.value
+  if (!form.value.memberId && currentFamilyMemberId.value) {
+    form.value.memberId = currentFamilyMemberId.value
+  }
+  // payerId 同理
+  if (!form.value.payerId && currentFamilyMemberId.value) {
+    form.value.payerId = currentFamilyMemberId.value
   }
 })
 
@@ -91,7 +164,8 @@ function openForm() {
     amount: '',
     categoryId: categoryStore.items[0]?.id || '',
     accountId: accountStore.items[0]?.id || '',
-    memberId: currentUserId.value || memberOptions.value[0]?.id || '',
+    memberId: currentFamilyMemberId.value || memberOptions.value[0]?.id || '',
+    payerId: currentFamilyMemberId.value || memberOptions.value[0]?.id || '',
     spentAt: new Date(),
     note: ''
   }
@@ -106,6 +180,7 @@ function openEdit(e: any) {
     categoryId: e.category_id,
     accountId: e.account_id || accountStore.items[0]?.id || '',
     memberId: e.member_id,
+    payerId: e.payer_id || e.member_id,
     spentAt: new Date(e.spent_at),
     note: e.note || ''
   }
@@ -135,6 +210,10 @@ async function submitForm() {
     notify.error('请选择消费成员')
     return
   }
+  if (!form.value.payerId) {
+    notify.error('请选择付款人')
+    return
+  }
   if (editingId.value) {
     // 编辑模式
     const r = await store.update(editingId.value, {
@@ -142,6 +221,7 @@ async function submitForm() {
       categoryId: form.value.categoryId,
       accountId: form.value.accountId,
       memberId: form.value.memberId,
+      payerId: form.value.payerId,
       spentAt: form.value.spentAt.toISOString(),
       note: form.value.note.trim().slice(0, 200)
     })
@@ -159,6 +239,7 @@ async function submitForm() {
       categoryId: form.value.categoryId,
       accountId: form.value.accountId,
       memberId: form.value.memberId,
+      payerId: form.value.payerId,
       spentAt: form.value.spentAt.toISOString(),
       note: form.value.note.trim().slice(0, 200)
     })
@@ -186,12 +267,13 @@ async function deleteOne(id: string) {
 }
 
 function canEditExpense(e: any) {
-  // 原型模式：所有账单都能删
-  if (!isSupabaseConfigured) return true
   return e.creator_id === currentUserId.value
 }
 
 function getMemberLabel(id: string) {
+  return memberOptions.value.find((m) => m.id === id)?.label || '-'
+}
+function getPayerLabel(id: string) {
   return memberOptions.value.find((m) => m.id === id)?.label || '-'
 }
 
@@ -267,7 +349,27 @@ function fmtMoney(n: number) {
       </el-button>
     </div>
 
-    <div class="list-card">
+    <!-- 当前生效的筛选条件(成员/分类/金额);点击 × 单独清除 -->
+    <div v-if="activeFilterChips.length > 0" class="active-filters">
+      <span class="active-label">当前筛选：</span>
+      <el-tag
+        v-for="chip in activeFilterChips"
+        :key="chip.key"
+        closable
+        size="default"
+        type="info"
+        @close="chip.onClose()"
+      >
+        {{ chip.label }}
+      </el-tag>
+      <el-button text type="primary" size="small" @click="clearAllFilters">
+        清空全部
+      </el-button>
+    </div>
+
+    <MemberStatsPanel @jump-to-list="onJumpToList" />
+
+    <div ref="listEl" class="list-card">
       <div class="list-head">
         <span>消费时间</span>
         <span>成员</span>
@@ -279,7 +381,12 @@ function fmtMoney(n: number) {
       </div>
       <div v-for="e in store.filteredExpenses" :key="e.id" class="list-row">
         <span class="cell-time">{{ formatDate(e.spent_at) }}</span>
-        <span>{{ getMemberLabel(e.member_id) }}</span>
+        <span class="cell-member">
+          <span class="member-main">{{ getMemberLabel(e.member_id) }}</span>
+          <span v-if="e.payer_id && e.payer_id !== e.member_id" class="member-payer">
+            <span class="payer-prefix">{{ getPayerLabel(e.payer_id) }} 付</span>
+          </span>
+        </span>
         <span>
           <span class="cat-chip">
             <span class="cat-icon">{{ getCategory(e.category_id)?.icon }}</span>
@@ -324,12 +431,12 @@ function fmtMoney(n: number) {
     <el-dialog
       v-model="formVisible"
       :title="isEditing ? '编辑账单' : '记一笔支出'"
-      width="520px"
+      width="560px"
       :close-on-click-modal="false"
       @closed="closeForm"
     >
-      <el-form label-position="top">
-        <el-form-item label="金额" required>
+      <el-form label-position="top" class="expense-form">
+        <el-form-item label="金额" required class="form-full">
           <el-input
             ref="amountInputRef"
             v-model="form.amount"
@@ -343,10 +450,10 @@ function fmtMoney(n: number) {
           </el-input>
         </el-form-item>
 
-        <el-form-item label="分类" required>
+        <el-form-item label="分类" required class="form-full">
           <el-select
             v-model="form.categoryId"
-            size="large"
+            size="default"
             style="width: 100%"
             placeholder="选择分类"
             filterable
@@ -360,31 +467,41 @@ function fmtMoney(n: number) {
           </el-select>
         </el-form-item>
 
-        <el-form-item label="支付账户" required>
-          <el-select v-model="form.accountId" size="large" style="width: 100%" placeholder="选择用什么付的">
-            <el-option v-for="a in accountOptions" :key="a.id" :label="a.label" :value="a.id" />
-          </el-select>
-        </el-form-item>
+        <div class="form-row">
+          <el-form-item label="消费成员" required>
+            <el-select v-model="form.memberId" size="default" style="width: 100%">
+              <el-option v-for="m in memberOptions" :key="m.id" :label="m.label" :value="m.id" />
+            </el-select>
+          </el-form-item>
 
-        <el-form-item label="消费成员" required>
-          <el-select v-model="form.memberId" size="large" style="width: 100%">
-            <el-option v-for="m in memberOptions" :key="m.id" :label="m.label" :value="m.id" />
-          </el-select>
-        </el-form-item>
+          <el-form-item label="付款人" required>
+            <el-select v-model="form.payerId" size="default" style="width: 100%">
+              <el-option v-for="m in memberOptions" :key="m.id" :label="m.label" :value="m.id" />
+            </el-select>
+          </el-form-item>
+        </div>
 
-        <el-form-item label="消费时间" required>
-          <el-date-picker
-            v-model="form.spentAt"
-            type="datetime"
-            size="large"
-            style="width: 100%"
-            :max-date="new Date()"
-            format="YYYY-MM-DD HH:mm"
-            value-format="x"
-          />
-        </el-form-item>
+        <div class="form-row">
+          <el-form-item label="支付账户" required>
+            <el-select v-model="form.accountId" size="default" style="width: 100%">
+              <el-option v-for="a in accountOptions" :key="a.id" :label="a.label" :value="a.id" />
+            </el-select>
+          </el-form-item>
 
-        <el-form-item label="备注">
+          <el-form-item label="消费时间" required>
+            <el-date-picker
+              v-model="form.spentAt"
+              type="datetime"
+              size="default"
+              style="width: 100%"
+              :max-date="new Date()"
+              format="YYYY-MM-DD HH:mm"
+              value-format="x"
+            />
+          </el-form-item>
+        </div>
+
+        <el-form-item label="备注" class="form-full">
           <el-input
             v-model="form.note"
             type="textarea"
@@ -531,6 +648,23 @@ function fmtMoney(n: number) {
   margin-bottom: 16px;
 }
 
+.active-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: #f0f7ff;
+  border-radius: 8px;
+  border: 1px solid #d6e8ff;
+}
+.active-filters .active-label {
+  font-size: 13px;
+  color: #606266;
+  font-weight: 500;
+}
+
 .list-card {
   background: #fff;
   border-radius: 12px;
@@ -565,6 +699,26 @@ function fmtMoney(n: number) {
 .cell-time {
   color: var(--color-text-soft);
   font-variant-numeric: tabular-nums;
+}
+.cell-member {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.3;
+}
+.member-main {
+  color: var(--color-text);
+}
+.member-payer {
+  font-size: 11px;
+  color: var(--color-text-soft);
+}
+.payer-prefix {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 11px;
 }
 .cell-note {
   color: var(--color-text-soft);
@@ -657,6 +811,27 @@ function fmtMoney(n: number) {
   font-size: 12px;
   color: #909399;
   margin-top: 4px;
+}
+
+/* === 记账弹框:两列紧凑布局 === */
+.expense-form :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+.expense-form :deep(.el-form-item__label) {
+  padding-bottom: 2px;
+  line-height: 1.2;
+  font-size: 13px;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+.form-row :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+.form-full {
+  display: block;
 }
 
 /* === 分步弹框：Step 1 主表单 === */

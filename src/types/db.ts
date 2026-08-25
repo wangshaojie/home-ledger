@@ -42,3 +42,17 @@ export interface DbExpense {
   updated_at: string
   deleted_at: string | null
 }
+
+/**
+ * v1.1 家庭成员（不再直接用 profiles 当消费归属）
+ * - adult: linked_profile_id 非空，对应一个登录用户
+ * - child/pet: linked_profile_id 为 NULL，没有自己的账号，由父母代记账
+ */
+export interface DbFamilyMember {
+  id: string
+  family_id: string
+  name: string
+  type: 'adult' | 'child' | 'pet'
+  linked_profile_id: string | null
+  created_at: string
+}

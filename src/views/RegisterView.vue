@@ -8,7 +8,6 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { notify } from '@/lib/notify'
 import { useAuthStore } from '@/stores/auth'
-import { isSupabaseConfigured } from '@/lib/supabase'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -138,10 +137,6 @@ async function submit() {
           <el-link type="primary" :underline="false" @click="router.push({ name: 'login' })">
             返回登录
           </el-link>
-        </div>
-
-        <div v-if="!isSupabaseConfigured" class="prototype-tip">
-          原型模式：邮箱填什么都能进，直接跳转到家庭创建页
         </div>
       </el-form>
     </div>

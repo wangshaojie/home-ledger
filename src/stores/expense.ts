@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { errText } from '@/lib/notify'
 import { useAuthStore } from './auth'
 
@@ -9,6 +9,7 @@ export interface Expense {
   family_id: string
   creator_id: string
   member_id: string
+  payer_id: string
   category_id: string
   account_id: string | null
   amount: number
@@ -18,7 +19,9 @@ export interface Expense {
   updated_at: string
   deleted_at: string | null
   // 关联表 join 出来的可选字段
-  member?: { id: string; email: string; display_name: string | null } | null
+  // v1.1: member 指向 family_members（不再指向 profiles）
+  member?: { id: string; name: string; type: 'adult' | 'child' | 'pet' } | null
+  payer?: { id: string; name: string; type: 'adult' | 'child' | 'pet' } | null
   category?: { id: string; name: string; icon: string } | null
   account?: { id: string; name: string; icon: string } | null
 }
@@ -29,36 +32,6 @@ export interface FilterState {
   memberIds: string[]
   minAmount?: number
   maxAmount?: number
-}
-
-// 原型模式假数据
-function buildMockExpenses(familyId: string): Expense[] {
-  const now = Date.now()
-  const day = 24 * 60 * 60 * 1000
-  const list: Expense[] = []
-  const titles = [
-    '超市买菜','滴滴打车','午餐外卖','水电费','电影票','咖啡',
-    '买菜水果','公交卡充值','牙膏纸巾','感冒药','理发','生日礼物',
-    '健身房月卡','衣服','聚餐','奶茶','快递费','话费充值','宠物粮','牙膏'
-  ]
-  for (let i = 0; i < titles.length; i++) {
-    const d = new Date(now - i * 0.6 * day - Math.random() * day)
-    list.push({
-      id: 'e' + (i + 1),
-      family_id: familyId,
-      creator_id: 'm1',
-      member_id: ['m1','m2','m3'][i % 3],
-      category_id: 'c' + ((i % 10) + 1),
-      account_id: 'a' + ((i % 5) + 1),
-      amount: Math.round((Math.random() * 200 + 8) * 100) / 100,
-      spent_at: d.toISOString(),
-      note: titles[i],
-      created_at: d.toISOString(),
-      updated_at: d.toISOString(),
-      deleted_at: null
-    })
-  }
-  return list
 }
 
 export const useExpenseStore = defineStore('expense', () => {
@@ -77,6 +50,7 @@ export const useExpenseStore = defineStore('expense', () => {
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const yesterday = new Date(startOfDay.getTime() - 86400000)
     const weekAgo = new Date(now.getTime() - 7 * 86400000)
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000)
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
 
     return items.value
@@ -85,6 +59,7 @@ export const useExpenseStore = defineStore('expense', () => {
         if (filter.value.range === 'today' && d < startOfDay) return false
         if (filter.value.range === 'yesterday' && (d < yesterday || d >= startOfDay)) return false
         if (filter.value.range === 'week' && d < weekAgo) return false
+        if (filter.value.range === '30d' && d < thirtyDaysAgo) return false
         if (filter.value.range === 'month' && d < monthStart) return false
         if (filter.value.categoryIds.length && !filter.value.categoryIds.includes(e.category_id)) return false
         if (filter.value.memberIds.length && !filter.value.memberIds.includes(e.member_id)) return false
@@ -118,6 +93,89 @@ export const useExpenseStore = defineStore('expense', () => {
       .reduce((s, e) => s + Number(e.amount), 0)
   })
 
+  /**
+   * v1.1 成员支出统计 - 按 creator 维度聚合
+   * 注意:expenses.creator_id 是 profile.id（v1.0 旧设计,SQL 层未改）,
+   *       返回的 memberId 实际上是 profile.id。调用方（MemberStatsPanel）
+   *       需要用 familyStore.members 把 profile.id 翻译成 family_member.id
+   * @param startDate ISO 字符串；传 null 表示无时间下限（全部历史）
+   * @param extraFilter 可选,跟 HomeView 列表筛选一致(categoryIds/memberIds/amount 范围)
+   */
+  async function aggregateByCreator(
+    startDate: string | null,
+    extraFilter?: {
+      categoryIds?: string[]
+      memberIds?: string[]
+      minAmount?: number
+      maxAmount?: number
+    }
+  ): Promise<{ memberId: string; total: number }[]> {
+    const auth = useAuthStore()
+    const fid = auth.profile?.family_id
+    if (!fid) return []
+    let q = supabase
+      .from('expenses')
+      .select('creator_id, amount')
+      .eq('family_id', fid)
+      .is('deleted_at', null)
+    if (startDate) q = q.gte('spent_at', startDate)
+    if (extraFilter?.categoryIds?.length) q = q.in('category_id', extraFilter.categoryIds)
+    if (extraFilter?.memberIds?.length) q = q.in('member_id', extraFilter.memberIds)
+    if (extraFilter?.minAmount != null) q = q.gte('amount', extraFilter.minAmount)
+    if (extraFilter?.maxAmount != null) q = q.lte('amount', extraFilter.maxAmount)
+    const { data, error } = await q
+    if (error) {
+      console.error('aggregateByCreator error', error)
+      return []
+    }
+    const map = new Map<string, number>()
+    for (const row of data || []) {
+      map.set(row.creator_id, (map.get(row.creator_id) || 0) + Number(row.amount))
+    }
+    return Array.from(map.entries())
+      .map(([memberId, total]) => ({ memberId, total }))
+      .sort((a, b) => b.total - a.total)
+  }
+
+  /**
+   * v1.1 成员支出统计 - 按 member 维度聚合
+   */
+  async function aggregateByMember(
+    startDate: string | null,
+    extraFilter?: {
+      categoryIds?: string[]
+      memberIds?: string[]
+      minAmount?: number
+      maxAmount?: number
+    }
+  ): Promise<{ memberId: string; total: number }[]> {
+    const auth = useAuthStore()
+    const fid = auth.profile?.family_id
+    if (!fid) return []
+    let q = supabase
+      .from('expenses')
+      .select('member_id, amount')
+      .eq('family_id', fid)
+      .is('deleted_at', null)
+    if (startDate) q = q.gte('spent_at', startDate)
+    if (extraFilter?.categoryIds?.length) q = q.in('category_id', extraFilter.categoryIds)
+    if (extraFilter?.memberIds?.length) q = q.in('member_id', extraFilter.memberIds)
+    if (extraFilter?.minAmount != null) q = q.gte('amount', extraFilter.minAmount)
+    if (extraFilter?.maxAmount != null) q = q.lte('amount', extraFilter.maxAmount)
+    const { data, error } = await q
+    if (error) {
+      console.error('aggregateByMember error', error)
+      return []
+    }
+    const map = new Map<string, number>()
+    for (const row of data || []) {
+      map.set(row.member_id, (map.get(row.member_id) || 0) + Number(row.amount))
+    }
+    return Array.from(map.entries())
+      .map(([memberId, total]) => ({ memberId, total }))
+      .sort((a, b) => b.total - a.total)
+  }
+
   async function load() {
     const auth = useAuthStore()
     const fid = auth.profile?.family_id
@@ -125,16 +183,13 @@ export const useExpenseStore = defineStore('expense', () => {
       items.value = []
       return
     }
-    if (!isSupabaseConfigured || !supabase) {
-      items.value = buildMockExpenses(fid)
-      return
-    }
     loading.value = true
     const { data, error } = await supabase
       .from('expenses')
       .select(`
         *,
-        member:member_id ( id, email, display_name ),
+        member:member_id ( id, name, type ),
+        payer:payer_id ( id, name, type ),
         category:category_id ( id, name, icon ),
         account:account_id ( id, name, icon )
       `)
@@ -155,6 +210,7 @@ export const useExpenseStore = defineStore('expense', () => {
     categoryId: string
     accountId: string
     memberId: string
+    payerId: string
     spentAt: string
     note: string
   }) {
@@ -162,31 +218,13 @@ export const useExpenseStore = defineStore('expense', () => {
     const fid = auth.profile?.family_id
     const uid = auth.user?.id || auth.profile?.id
     if (!fid || !uid) return { ok: false, message: '未登录' }
-    if (!supabase) {
-      // 原型
-      const newE: Expense = {
-        id: 'e' + Date.now(),
-        family_id: fid,
-        creator_id: uid,
-        member_id: payload.memberId,
-        category_id: payload.categoryId,
-        account_id: payload.accountId,
-        amount: payload.amount,
-        spent_at: payload.spentAt,
-        note: payload.note,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        deleted_at: null
-      }
-      items.value.unshift(newE)
-      return { ok: true, message: '记账成功（原型）' }
-    }
     const { data, error } = await supabase
       .from('expenses')
       .insert({
         family_id: fid,
         creator_id: uid,
         member_id: payload.memberId,
+        payer_id: payload.payerId,
         category_id: payload.categoryId,
         account_id: payload.accountId,
         amount: payload.amount,
@@ -195,7 +233,8 @@ export const useExpenseStore = defineStore('expense', () => {
       })
       .select(`
         *,
-        member:member_id ( id, email, display_name ),
+        member:member_id ( id, name, type ),
+        payer:payer_id ( id, name, type ),
         category:category_id ( id, name, icon ),
         account:account_id ( id, name, icon )
       `)
@@ -210,31 +249,16 @@ export const useExpenseStore = defineStore('expense', () => {
     categoryId: string
     accountId: string
     memberId: string
+    payerId: string
     spentAt: string
     note: string
   }>) {
-    if (!supabase) {
-      const i = items.value.findIndex((e) => e.id === id)
-      if (i >= 0) {
-        const e = items.value[i]
-        items.value[i] = {
-          ...e,
-          amount: patch.amount ?? e.amount,
-          category_id: patch.categoryId ?? e.category_id,
-          account_id: patch.accountId ?? e.account_id,
-          member_id: patch.memberId ?? e.member_id,
-          spent_at: patch.spentAt ?? e.spent_at,
-          note: patch.note ?? e.note,
-          updated_at: new Date().toISOString()
-        }
-      }
-      return { ok: true, message: '已更新（原型）' }
-    }
     const updateObj: any = {}
     if (patch.amount !== undefined) updateObj.amount = patch.amount
     if (patch.categoryId !== undefined) updateObj.category_id = patch.categoryId
     if (patch.accountId !== undefined) updateObj.account_id = patch.accountId
     if (patch.memberId !== undefined) updateObj.member_id = patch.memberId
+    if (patch.payerId !== undefined) updateObj.payer_id = patch.payerId
     if (patch.spentAt !== undefined) updateObj.spent_at = patch.spentAt
     if (patch.note !== undefined) updateObj.note = patch.note
     const { error } = await supabase.from('expenses').update(updateObj).eq('id', id)
@@ -245,10 +269,6 @@ export const useExpenseStore = defineStore('expense', () => {
   }
 
   async function remove(id: string) {
-    if (!supabase) {
-      items.value = items.value.filter((e) => e.id !== id)
-      return { ok: true, message: '已删除（原型）' }
-    }
     // 软删：更新 deleted_at
     const { error } = await supabase
       .from('expenses')
@@ -279,6 +299,9 @@ export const useExpenseStore = defineStore('expense', () => {
     todayTotal,
     monthTotal,
     yearTotal,
+    // v1.1 成员统计
+    aggregateByCreator,
+    aggregateByMember,
     load,
     add,
     update,

@@ -38,13 +38,13 @@ jobs:
 
       - name: Build renderer (Vite)
         run: pnpm exec vite build
-        # 默认构建走"原型模式"：不注入 VITE_SUPABASE_*，安装包首次启动走
-        # 前端 mock 数据（README 第一次使用小节）。如需发布连 Supabase 的版本，
-        # 在 repo Settings → Secrets 里加 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY，
-        # 然后解开下方 env 块即可。
-        # env:
-        #   VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-        #   VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        # v1.1 起强制线上模式：必须注入 Supabase env。GitHub repo Settings → Secrets
+        # 需要配 VITE_SUPABASE_URL 和 VITE_SUPABASE_PUBLISHABLE_KEY（旧版 Supabase
+        # 兼容 VITE_SUPABASE_ANON_KEY，二选一即可）。CI 优先用 publishable，回退 anon。
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Build main process (electron)
         # 项目没有独立的 vite.config.electron.ts，主进程由 vite.config.ts + vite-plugin-electron

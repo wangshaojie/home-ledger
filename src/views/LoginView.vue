@@ -9,7 +9,6 @@ import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { notify } from '@/lib/notify'
 import { useAuthStore } from '@/stores/auth'
-import { isSupabaseConfigured } from '@/lib/supabase'
 import { enableRemember30Days, disableRemember } from '@/lib/supabaseStorage'
 
 const router = useRouter()
@@ -94,12 +93,7 @@ function goForgot() {
             autocomplete="current-password"
           />
           <div class="hint">
-            <template v-if="!isSupabaseConfigured">
-              原型模式：密码 <b>888888</b>（任意邮箱）
-            </template>
-            <template v-else>
-              <el-link type="primary" :underline="false" @click="goForgot">忘记密码？</el-link>
-            </template>
+            <el-link type="primary" :underline="false" @click="goForgot">忘记密码？</el-link>
           </div>
         </el-form-item>
 

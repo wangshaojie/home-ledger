@@ -16,7 +16,6 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { notify } from '@/lib/notify'
 import { useAuthStore } from '@/stores/auth'
-import { isSupabaseConfigured } from '@/lib/supabase'
 
 const router = useRouter()
 const route = useRoute()
@@ -47,10 +46,7 @@ const subtitle = computed(() => {
 })
 
 // forgot 场景下 signup 阶段用户已填过邮箱，不让改（防填错）
-const emailEditable = computed(() => {
-  if (isSupabaseConfigured) return type === 'forgot' // forgot 必须登录态下不应让改，但实际 forgot 是未登录；可改
-  return true
-})
+const emailEditable = computed(() => type === 'forgot')
 
 onMounted(() => {
   // 任何 type 都允许未登录进入
@@ -130,7 +126,7 @@ function back() {
         <el-form-item label="邮箱">
           <el-input
             v-model="email"
-            :disabled="!emailEditable && isSupabaseConfigured"
+            :disabled="!emailEditable"
             placeholder="请输入邮箱"
             size="large"
           />
@@ -144,12 +140,7 @@ function back() {
             </el-button>
           </div>
           <div v-if="codeSent" class="hint">
-            验证码已发到 <b>{{ email }}</b>
-            <span v-if="!isSupabaseConfigured">（原型模式：验证码 <b>888888</b>）</span>
-            <span v-else>（10 分钟内有效，请检查垃圾邮件夹）</span>
-          </div>
-          <div v-else-if="type === 'forgot' && !isSupabaseConfigured" class="hint">
-            原型模式：直接输入验证码 <b>888888</b> 即可（不发邮件）
+            验证码已发到 <b>{{ email }}</b>（10 分钟内有效，请检查垃圾邮件夹）
           </div>
         </el-form-item>
 

@@ -4,9 +4,11 @@ import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { notify } from '@/lib/notify'
 import { useAuthStore } from '@/stores/auth'
+import { useFamilyStore } from '@/stores/family'
 
 const router = useRouter()
 const auth = useAuthStore()
+const familyStore = useFamilyStore()
 const familyName = ref('')
 const displayName = ref(auth.profile?.display_name || (auth.profile?.email?.split('@')[0] ?? ''))
 const submitting = ref(false)
@@ -28,13 +30,16 @@ async function submit() {
     await auth.updateDisplayName(dn)
   }
   const r = await auth.createFamily(name)
-  submitting.value = false
-  if (r.ok) {
-    notify.success(r.message)
-    router.push({ name: 'home' })
-  } else {
+  if (!r.ok) {
+    submitting.value = false
     notify.error(r.message)
+    return
   }
+  // v1.1：刷新 family store，让 SQL trigger 创建的"自己"的 family_member 行拉到前端
+  await familyStore.load()
+  submitting.value = false
+  notify.success(r.message)
+  router.push({ name: 'home' })
 }
 
 async function joinByInvite() {
@@ -56,13 +61,15 @@ async function joinByInvite() {
   }
   submitting.value = true
   const r = await auth.joinFamilyByInvite(code)
-  submitting.value = false
-  if (r.ok) {
-    notify.success(r.message)
-    router.push({ name: 'home' })
-  } else {
+  if (!r.ok) {
+    submitting.value = false
     notify.error(r.message)
+    return
   }
+  await familyStore.load()
+  submitting.value = false
+  notify.success(r.message)
+  router.push({ name: 'home' })
 }
 </script>
 
