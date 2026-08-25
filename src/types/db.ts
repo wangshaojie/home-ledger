@@ -7,6 +7,7 @@ export interface DbProfile {
   family_id: string | null
   display_name: string | null
   joined_at: string
+  email_verified?: boolean // v2026-08-25 新加：是否完成邮箱验证
 }
 
 export interface DbFamily {

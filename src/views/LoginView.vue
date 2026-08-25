@@ -1,62 +1,65 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+/**
+ * v2026-08-25 登录体系重构
+ * 密码登录页，邮箱用于验证（注册/改密/忘密）。
+ * - 默认展示：邮箱 + 密码登录
+ * - 底部入口：注册、忘密（→ 跳 /verify-email）
+ */
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { notify } from '@/lib/notify'
 import { useAuthStore } from '@/stores/auth'
 import { isSupabaseConfigured } from '@/lib/supabase'
+import { enableRemember30Days, disableRemember } from '@/lib/supabaseStorage'
 
 const router = useRouter()
 const auth = useAuthStore()
 
-const mode = ref<'otp' | 'password'>('otp')
 const email = ref('')
-const code = ref('')
 const password = ref('')
-const sending = ref(false)
-const verifying = ref(false)
-const countdown = ref(0)
+const submitting = ref(false)
 const remember = ref(true)
 
-const emailValid = computed(() => /^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(email.value))
-const canSend = computed(() => emailValid.value && countdown.value === 0 && !sending.value)
-const canVerify = computed(() => {
-  if (!emailValid.value) return false
-  if (mode.value === 'otp') return code.value.length === 6
-  return password.value.length >= 6
+watch(remember, (v) => {
+  if (v) enableRemember30Days()
+  else disableRemember()
 })
 
-async function sendOtp() {
-  if (!canSend.value) return
-  sending.value = true
-  const r = await auth.sendOtp(email.value)
-  sending.value = false
-  if (r.ok) {
-    notify.success(r.message)
-    countdown.value = 60
-    const t = setInterval(() => {
-      countdown.value--
-      if (countdown.value <= 0) clearInterval(t)
-    }, 1000)
-  } else {
-    notify.error(r.message)
-  }
-}
+const emailValid = computed(() => /^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(email.value))
+const canSubmit = computed(
+  () => emailValid.value && password.value.length >= 6 && !submitting.value
+)
 
 async function submit() {
-  if (!canVerify.value) return
-  verifying.value = true
-  const r =
-    mode.value === 'otp'
-      ? await auth.verifyOtp(email.value, code.value)
-      : await auth.signInWithPassword(email.value, password.value)
-  verifying.value = false
+  if (!canSubmit.value) return
+  submitting.value = true
+  const r = await auth.signInWithPassword(email.value, password.value)
+  submitting.value = false
   if (r.ok) {
     notify.success(r.message)
-    if (auth.hasFamily) router.push({ name: 'home' })
+    const p = await auth.ensureProfile()
+    if (p?.family_id) router.push({ name: 'home' })
     else router.push({ name: 'onboarding' })
   } else {
     notify.error(r.message)
+    // 邮箱未验证：跳到验证页（让用户重发验证码）
+    if ((r as any).code === 'email_not_verified') {
+      setTimeout(() => {
+        router.push({
+          name: 'verify-email',
+          query: { type: 'login', email: email.value }
+        })
+      }, 1200)
+    }
   }
+}
+
+function goRegister() {
+  router.push({ name: 'register' })
+}
+
+function goForgot() {
+  router.push({ name: 'verify-email', query: { type: 'forgot', email: email.value } })
 }
 </script>
 
@@ -66,58 +69,59 @@ async function submit() {
       <div class="login-header">
         <div class="logo">🏠</div>
         <h1>家庭记账</h1>
-        <p class="subtitle">邮箱验证码登录，新用户自动注册</p>
+        <p class="subtitle">邮箱 + 密码登录</p>
       </div>
-
-      <el-tabs v-model="mode" class="login-tabs">
-        <el-tab-pane label="验证码登录" name="otp" />
-        <el-tab-pane label="密码登录" name="password" />
-      </el-tabs>
 
       <el-form @submit.prevent="submit" label-position="top">
         <el-form-item label="邮箱">
-          <el-input v-model="email" placeholder="请输入邮箱" clearable size="large" />
+          <el-input
+            v-model="email"
+            placeholder="请输入邮箱"
+            clearable
+            size="large"
+            type="email"
+            autocomplete="email"
+          />
         </el-form-item>
 
-        <el-form-item v-if="mode === 'otp'" label="验证码">
-          <div class="code-row">
-            <el-input v-model="code" placeholder="6 位数字" maxlength="6" size="large" />
-            <el-button size="large" :disabled="!canSend" :loading="sending" @click="sendOtp">
-              {{ countdown > 0 ? `${countdown}s 后重发` : '获取验证码' }}
-            </el-button>
-          </div>
+        <el-form-item label="密码">
+          <el-input
+            v-model="password"
+            type="password"
+            show-password
+            placeholder="8-20 位"
+            size="large"
+            autocomplete="current-password"
+          />
           <div class="hint">
             <template v-if="!isSupabaseConfigured">
-              原型模式：任何邮箱 + 验证码 <b>888888</b> 即可通过
+              原型模式：密码 <b>888888</b>（任意邮箱）
             </template>
             <template v-else>
-              验证码会发送到你的邮箱（请检查垃圾邮件夹）
+              <el-link type="primary" :underline="false" @click="goForgot">忘记密码？</el-link>
             </template>
-          </div>
-        </el-form-item>
-
-        <el-form-item v-else label="密码">
-          <el-input v-model="password" type="password" show-password placeholder="6-20 位" size="large" />
-          <div class="hint">
-            <template v-if="!isSupabaseConfigured">原型模式：密码 <b>888888</b></template>
-            <template v-else>未设置密码的账号请用「验证码登录」</template>
           </div>
         </el-form-item>
 
         <div class="remember-row">
-          <el-checkbox v-model="remember">记住登录状态</el-checkbox>
+          <el-checkbox v-model="remember">30 天免登录（关闭后下次需重新登录）</el-checkbox>
         </div>
 
         <el-button
           type="primary"
           size="large"
           class="submit-btn"
-          :disabled="!canVerify"
-          :loading="verifying"
+          :disabled="!canSubmit"
+          :loading="submitting"
           @click="submit"
         >
-          登录 / 注册
+          登录
         </el-button>
+
+        <div class="bottom-tip">
+          没账号？
+          <el-link type="primary" :underline="false" @click="goRegister">立即注册</el-link>
+        </div>
       </el-form>
 
       <div class="footer-tip">本产品仅记录家庭支出，不含收入统计、理财、社交功能</div>
@@ -160,17 +164,6 @@ async function submit() {
   font-size: 13px;
   margin: 0;
 }
-.login-tabs {
-  margin-bottom: 16px;
-}
-.code-row {
-  display: flex;
-  gap: 10px;
-  width: 100%;
-}
-.code-row .el-input {
-  flex: 1;
-}
 .hint {
   font-size: 12px;
   color: #909399;
@@ -183,6 +176,12 @@ async function submit() {
   width: 100%;
   background: var(--color-primary);
   border-color: var(--color-primary);
+}
+.bottom-tip {
+  text-align: center;
+  font-size: 13px;
+  color: #909399;
+  margin-top: 16px;
 }
 .footer-tip {
   text-align: center;

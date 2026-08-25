@@ -4,7 +4,7 @@
 -- 每家庭一套，CRUD 由家庭成员操作
 -- ========================================
 
-create table public.payment_accounts (
+create table if not exists public.payment_accounts (
   id uuid primary key default uuid_generate_v4(),
   family_id uuid not null references public.families(id) on delete cascade,
   name text not null,
@@ -14,36 +14,40 @@ create table public.payment_accounts (
   created_at timestamptz not null default now(),
   unique (family_id, name)
 );
-create index idx_payment_accounts_family on public.payment_accounts(family_id);
+create index if not exists idx_payment_accounts_family on public.payment_accounts(family_id);
 
 -- ========================================
--- expenses 表加 account_id 字段
+-- expenses 表加 account_id 字段（已部署过的加 if not exists）
 -- ========================================
 alter table public.expenses
-  add column account_id uuid references public.payment_accounts(id) on delete set null;
-create index idx_expenses_family_account on public.expenses(family_id, account_id);
+  add column if not exists account_id uuid references public.payment_accounts(id) on delete set null;
+create index if not exists idx_expenses_family_account on public.expenses(family_id, account_id);
 
 -- ========================================
 -- RLS
 -- ========================================
 alter table public.payment_accounts enable row level security;
 
+drop policy if exists "payment_accounts: 同家庭可见" on public.payment_accounts;
 create policy "payment_accounts: 同家庭可见"
   on public.payment_accounts
   for select
   using (public.is_family_member(family_id));
 
+drop policy if exists "payment_accounts: 同家庭可创建" on public.payment_accounts;
 create policy "payment_accounts: 同家庭可创建"
   on public.payment_accounts
   for insert
   with check (public.is_family_member(family_id) and is_default = false);
 
+drop policy if exists "payment_accounts: 同家庭可改自定义" on public.payment_accounts;
 create policy "payment_accounts: 同家庭可改自定义"
   on public.payment_accounts
   for update
   using (public.is_family_member(family_id) and is_default = false)
   with check (public.is_family_member(family_id) and is_default = false);
 
+drop policy if exists "payment_accounts: 同家庭可删自定义" on public.payment_accounts;
 create policy "payment_accounts: 同家庭可删自定义"
   on public.payment_accounts
   for delete
