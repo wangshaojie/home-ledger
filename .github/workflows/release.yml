@@ -1,0 +1,58 @@
+name: Release Windows Installer
+
+# 触发条件：推送形如 v1.0.1 的 tag
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write  # 写 release 必须
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm type-check
+
+      - name: Build renderer (Vite)
+        run: pnpm exec vite build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Build main process (electron)
+        run: pnpm exec vite build --config vite.config.electron.ts || pnpm exec tsc -p tsconfig.electron.json
+
+      - name: Package with electron-builder (NSIS + Portable)
+        run: pnpm exec electron-builder --win nsis portable --x64 --publish always
+        env:
+          # electron-updater 需要 GH_TOKEN 才能 publish release
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: home-ledger-windows-${{ github.ref_name }}
+          path: |
+            release/**/*.exe
+            release/**/*.yml
+            release/**/*.blockmap
