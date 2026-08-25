@@ -189,10 +189,13 @@ let isDownloading = false
 
 async function setupAutoUpdater() {
   // ⚠️ v2026-08-25: electron-updater 是 CJS 包, Vite 编译后的 `await import` 不会自动
-  // interop 解包, named import 拿到 undefined. 改用 `(await import(...)).default ?? mod` 兜底
+  // interop 解包, named import 拿到 undefined. 改用 `rawMod.default ?? rawMod` 兜底
+  // 用 unknown 过渡避免类型污染, 否则 AppUpdater 事件回调参数会退化成 any 触发 TS7006
   // 参考: https://github.com/electron-userland/electron-builder/issues/8115
-  const mod = await import('electron-updater')
-  const { autoUpdater } = (mod as any).default ?? mod
+  const rawMod: unknown = await import('electron-updater')
+  const mod = (rawMod as { default?: typeof import('electron-updater') }).default
+    ?? (rawMod as typeof import('electron-updater'))
+  const { autoUpdater } = mod
 
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
@@ -282,8 +285,10 @@ ipcMain.handle('app:check-for-updates', async () => {
   }
   try {
     // ⚠️ CJS interop: 拿 default 兜底（参考 setupAutoUpdater 同款修法）
-    const mod = await import('electron-updater')
-    const { autoUpdater } = (mod as any).default ?? mod
+    const rawMod: unknown = await import('electron-updater')
+    const mod = (rawMod as { default?: typeof import('electron-updater') }).default
+      ?? (rawMod as typeof import('electron-updater'))
+    const { autoUpdater } = mod
     const result = await autoUpdater.checkForUpdates()
     return {
       ok: true,
