@@ -188,8 +188,11 @@ let updateCheckInterval: NodeJS.Timeout | null = null
 let isDownloading = false
 
 async function setupAutoUpdater() {
-  // 用 ESM 动态 import，避免在 dev 启动时也加载
-  const { autoUpdater } = await import('electron-updater')
+  // ⚠️ v2026-08-25: electron-updater 是 CJS 包, Vite 编译后的 `await import` 不会自动
+  // interop 解包, named import 拿到 undefined. 改用 `(await import(...)).default ?? mod` 兜底
+  // 参考: https://github.com/electron-userland/electron-builder/issues/8115
+  const mod = await import('electron-updater')
+  const { autoUpdater } = (mod as any).default ?? mod
 
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
@@ -278,7 +281,9 @@ ipcMain.handle('app:check-for-updates', async () => {
     return { ok: false, message: '开发模式不检查更新' }
   }
   try {
-    const { autoUpdater } = await import('electron-updater')
+    // ⚠️ CJS interop: 拿 default 兜底（参考 setupAutoUpdater 同款修法）
+    const mod = await import('electron-updater')
+    const { autoUpdater } = (mod as any).default ?? mod
     const result = await autoUpdater.checkForUpdates()
     return {
       ok: true,
