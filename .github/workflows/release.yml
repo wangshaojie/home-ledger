@@ -51,10 +51,20 @@ jobs:
         # 在 'Build renderer' 阶段一起处理。此处仅做类型检查（主进程 src 在 electron/）。
         run: pnpm exec tsc -p tsconfig.electron.json
 
-      - name: Package with electron-builder (NSIS + Portable)
-        run: pnpm exec electron-builder --win nsis portable --x64 --publish always
+      - name: Package with electron-builder (NSIS)
+        # 先打 NSIS --publish always 上传 asset + latest.yml
+        # portable 分两次调是为避免 CI 上 portable/NSIS 同时跑 artifactName 撞车
+        run: pnpm exec electron-builder --win nsis --x64 --publish always
         env:
-          # electron-updater 需要 GH_TOKEN 才能 publish release
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package with electron-builder (Portable)
+        # portable 段 artifactName 固定 "home-ledger-${version}-portable-${arch}.${ext}"
+        # 不用 ${productName} 避免 productName 映射 (家庭记账 -> home-ledger) 误替换
+        # CI 跑两次（两次 electron-builder）能看各自日志, portable publish 阶段
+        # 默认走 GitHub provider 自动上传到 release
+        run: pnpm exec electron-builder --win portable --x64 --publish always
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts
