@@ -1,6 +1,6 @@
 # Supabase 部署指引
 
-> 适用版本：home-ledger v1.2（含改密流程）
+> 适用版本：HomeLedger v1.2（含改密流程）
 > 预计耗时：10-15 分钟
 
 ## 1. 创建 Supabase 项目

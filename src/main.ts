@@ -96,8 +96,8 @@ try {
 } catch (e: any) {
   // 极可能：supabase 模块构造时 throw（env 缺失）
   // 也兜底任何其他 mount 期异常
-  console.error('[home-ledger] 启动失败：', e)
-  if (e?.message?.includes('未配置 Supabase') || e?.message?.includes('home-ledger')) {
+  console.error('[HomeLedger] 启动失败：', e)
+  if (e?.message?.includes('未配置 Supabase') || e?.message?.includes('HomeLedger')) {
     showBootstrapError(e.message)
   } else {
     showBootstrapError(

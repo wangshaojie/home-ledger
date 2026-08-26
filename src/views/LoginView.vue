@@ -91,6 +91,7 @@ function goForgot() {
             placeholder="8-20 位"
             size="large"
             autocomplete="current-password"
+            @keyup.enter="submit"
           />
           <div class="hint">
             <el-link type="primary" :underline="false" @click="goForgot">忘记密码？</el-link>

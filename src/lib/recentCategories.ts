@@ -7,7 +7,7 @@
  * - 重复选同分类会自动移到队首
  */
 
-const KEY_PREFIX = 'home-ledger:recent-categories:'
+const KEY_PREFIX = 'HomeLedger:recent-categories:'
 const MAX = 5
 
 function getKey(familyId: string): string {

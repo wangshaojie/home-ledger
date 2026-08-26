@@ -20,7 +20,7 @@ const key = (
 
 if (!url || !key) {
   throw new Error(
-    '[home-ledger] 未配置 Supabase。请在项目根目录创建 .env.local，' +
+    '[HomeLedger] 未配置 Supabase。请在项目根目录创建 .env.local，' +
       '填入 VITE_SUPABASE_URL 和 VITE_SUPABASE_PUBLISHABLE_KEY 后重启 dev。' +
       '（旧版 Supabase 兼容 VITE_SUPABASE_ANON_KEY）'
   )

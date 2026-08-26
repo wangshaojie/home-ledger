@@ -1,4 +1,4 @@
-# 家庭记账 (Home Ledger)
+# 家庭记账 (HomeLedger)
 
 <p align="center">
   <img src="build/icon-256.png" alt="家庭记账" width="128" />
@@ -44,8 +44,8 @@
 
 | 类型 | 说明 | 推荐场景 | 直链下载 |
 |---|---|---|---|
-| 🟢 **便携版** (Portable) | 单个 `.exe`，免安装，双击即用，不写注册表 | 临时使用、U 盘携带、不想留痕迹 | [家庭记账-1.1.0-portable-x64.exe](https://github.com/wangshaojie/home-ledger/releases/latest/download/%E5%AE%B6%E5%BA%AD%E8%AE%B0%E8%B4%A6-1.1.0-portable-x64.exe) |
-| 🔵 **安装版** (NSIS) | 标准安装流程，带桌面/开始菜单快捷方式 | 长期使用、需要自动更新 | [家庭记账-1.1.0-x64.exe](https://github.com/wangshaojie/home-ledger/releases/latest/download/%E5%AE%B6%E5%BA%AD%E8%AE%B0%E8%B4%A6-1.1.0-x64.exe) |
+| 🟢 **便携版** (Portable) | 单个 `.exe`，免安装，双击即用，不写注册表 | 临时使用、U 盘携带、不想留痕迹 | [HomeLedger-1.1.0-portable-x64.exe](https://github.com/wangshaojie/home-ledger/releases/latest/download/HomeLedger-1.1.0-portable-x64.exe) |
+| 🔵 **安装版** (NSIS) | 标准安装流程，带桌面/开始菜单快捷方式 | 长期使用、需要自动更新 | [HomeLedger-1.1.0-x64.exe](https://github.com/wangshaojie/home-ledger/releases/latest/download/HomeLedger-1.1.0-x64.exe) |
 
 ### 校验
 
@@ -53,7 +53,7 @@
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\家庭记账-1.1.0-portable-x64.exe -Algorithm SHA256
+Get-FileHash .\HomeLedger-1.1.0-portable-x64.exe -Algorithm SHA256
 ```
 
 对比哈希值是否与 [Release 资产页](https://github.com/wangshaojie/home-ledger/releases/latest) 一致。

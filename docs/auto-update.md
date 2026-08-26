@@ -1,6 +1,6 @@
 # 家庭记账 - 自动更新操作文档
 
-> **适用范围**：`home-ledger` Windows 桌面端（Electron + electron-builder + GitHub Releases）
+> **适用范围**：`HomeLedger`（npm 包名；中文产品名「家庭记账」，GitHub 仓库名 `wangshaojie/home-ledger`）Windows 桌面端（Electron + electron-builder + GitHub Releases）
 > **更新机制**：客户端 `electron-updater` 自动拉取 GitHub Release 上的 `latest.yml` 判断版本
 > **首发版本**：v1.0.0 → 之后所有版本走本流程
 
