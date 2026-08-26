@@ -134,8 +134,6 @@ const accountOptions = computed(() =>
   }))
 )
 
-const currentUserId = computed(() => auth.user?.id || auth.profile?.id || '')
-
 /**
  * v1.1 找到当前登录用户对应的 family_member 行（用 linked_profile_id 匹配）
  * 记账表单的"消费归属"默认选这个
@@ -266,8 +264,13 @@ async function deleteOne(id: string) {
   } catch {}
 }
 
-function canEditExpense(e: any) {
-  return e.creator_id === currentUserId.value
+/**
+ * 家庭成员可编辑/删除账单
+ * v2026-08-26 放开：原限制仅创建者（creator_id === currentUserId），
+ * 与数据库 RLS 一致（UPDATE/DELETE 策略均为 is_family_member(family_id)）
+ */
+function canEditExpense() {
+  return true
 }
 
 function getMemberLabel(id: string) {
@@ -407,7 +410,7 @@ function fmtMoney(n: number) {
             text
             type="primary"
             size="small"
-            :disabled="!canEditExpense(e)"
+            :disabled="!canEditExpense()"
             @click="openEdit(e)"
           >
             <el-icon><Edit /></el-icon>
@@ -416,7 +419,7 @@ function fmtMoney(n: number) {
             text
             type="danger"
             size="small"
-            :disabled="!canEditExpense(e)"
+            :disabled="!canEditExpense()"
             @click="deleteOne(e.id)"
           >
             <el-icon><Delete /></el-icon>

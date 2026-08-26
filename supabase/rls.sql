@@ -104,11 +104,16 @@ create policy "categories: 同家庭可删自定义"
 -- ⚠️ v2026-08-25 修复：expenses INSERT/UPDATE/DELETE 都要校验 family_id
 -- 之前只校验 creator_id，攻击者可以 insert family_id = 别人家庭的 id 污染数据
 -- ===========================
+-- ⚠️ v2026-08-26 修复：SELECT 策略不再过滤 deleted_at
+-- PostgreSQL RLS 要求 UPDATE 后的新行仍满足 SELECT 策略；软删置 deleted_at 非空
+-- 会被旧策略（deleted_at is null）拒绝，报 42501 "new row violates ..."。
+-- 应用层（expense.ts 的 load/aggregateBy*) 已统一 .is('deleted_at', null) 过滤，
+-- 软删行不会出现在 UI 中。
 drop policy if exists "expenses: 同家庭可见" on public.expenses;
 create policy "expenses: 同家庭可见"
   on public.expenses
   for select
-  using (public.is_family_member(family_id) and deleted_at is null);
+  using (public.is_family_member(family_id));
 
 drop policy if exists "expenses: 创建者可创建" on public.expenses;
 create policy "expenses: 创建者可创建"
