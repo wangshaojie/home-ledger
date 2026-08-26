@@ -49,6 +49,39 @@
 
 > ⚠️ **v2026-08-25 安全加固**：这 3 个 RPC 都已经从 grant anon 改为只 grant authenticated，并在内部校验 `auth.uid()` 必须 = 目标 user。
 
+### 2.7 fix_expenses_rls_member_delete.sql（v1.1.7 补丁 · 必须）
+
+**v1.1.6 → v1.1.7 升级时必须跑这个补丁**，否则家庭其他成员点"删除账单"会报：
+
+```
+new row violates row-level security policy for table "expenses"
+```
+
+**原因**：旧 RLS 策略 `expenses: 创建者可改/可删` 限定 `creator_id = auth.uid()`，只允许创建者改/删。但 UI 上"删除"按钮对所有家庭成员都显示，导致非创建者被 RLS 拒绝。
+
+**修法**：放宽 UPDATE / DELETE 策略到 `is_family_member(family_id)`，所有同家庭成员都能软删/修改。INSERT 仍要求 `creator_id = auth.uid()`（谁创建谁负责），不变。
+
+复制 `supabase/fix_expenses_rls_member_delete.sql` 全部内容粘贴进去 → Run
+
+应看到 2 条 `DROP POLICY` + 2 条 `CREATE POLICY` 成功（expenses UPDATE / DELETE 策略替换）。
+
+**验证（可选）**：
+
+```sql
+select polname, polcmd from pg_policy
+where polrelid = 'public.expenses'::regclass
+order by polname;
+```
+
+应看到 4 条策略：SELECT / INSERT / UPDATE / DELETE，名字分别是：
+
+- `expenses: 同家庭可见` (r)
+- `expenses: 创建者可创建` (a)
+- `expenses: 创建者可改` (w) ← 行为放宽
+- `expenses: 创建者可删` (d) ← 行为放宽
+
+> 注：策略名**仍是**"创建者可改/可删"（保留原名字以免和历史脚本冲突），但实际判断已经改成"同家庭可改/可删"。
+
 ## 3. 配置 Auth
 
 ### 3.1 开启邮箱 OTP
