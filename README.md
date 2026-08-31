@@ -31,12 +31,16 @@
 
 > 系统要求：**Windows 10 / 11（64 位）**
 
-| 选择 | 适合你 | 下载 |
-|---|---|---|
-| 🟢 **便携版**（免安装） | 想直接用、不想装东西 | [下载](https://github.com/wangshaojie/home-ledger/releases/latest/download/HomeLedger-1.1.9-portable-x64.exe) |
-| 🔵 **安装版**（自动更新） | 长期用、想开机自启 | [下载](https://github.com/wangshaojie/home-ledger/releases/latest/download/HomeLedger-setup-1.1.9-x64.exe) |
+👉 **去 [Releases 页面](https://github.com/wangshaojie/home-ledger/releases) 选最新版本下载**
 
-> 不确定选哪个？**选便携版**——双击就能用，不写注册表、不留垃圾，扔 U 盘里也能跑。
+每个 release 里都有两个文件：
+
+| 文件 | 适合你 |
+|---|---|
+| `*-portable-x64.exe` 🟢 | 想直接用、不想装东西——双击即跑，不写注册表，U 盘也能带 |
+| `*-setup-x64.exe` 🔵 | 长期用、想开机自启——自动更新，桌面有图标 |
+
+> 不确定选哪个？**选 portable 那个**，文件名带 `portable-x64.exe` 的就是。
 
 ## 第一次使用
 
@@ -44,10 +48,7 @@
 
 ### 1️⃣ 下载并打开
 
-下好 .exe 后双击：
-
-- **便携版**：直接双击 `HomeLedger-1.1.9-portable-x64.exe`
-- **安装版**：双击 `HomeLedger-setup-1.1.9-x64.exe` → 一路 "下一步"
+到 [Releases 页面](https://github.com/wangshaojie/home-ledger/releases) 选最新版本，下 portable 或 setup 那个 .exe，然后双击。
 
 > ⚠️ Windows 第一次打开可能会弹"未知发布者"警告，点"仍要运行"就行。
 
@@ -116,16 +117,14 @@
 <details>
 <summary><b>登录状态怎么没了？</b></summary>
 
-勾了"30 天免登录"的话应该能撑 30 天。如果 1 小时就掉（v1.1.0 旧版的 bug），升到 v1.1.9 解决。
+勾了"30 天免登录"的话应该能撑 30 天。如果 1 小时就掉（v1.1.0 旧版的 bug），升到最新版解决。
 </details>
 
 ## 📝 更新日志
 
 | 版本 | 日期 | 关键变更 |
 |---|---|---|
-| **v1.1.9** | 2026-08-31 | 🐛 修复登录态 1 小时就掉的 bug；字段文案统一为"消费成员 / 支付账户"；CI 打包修 NSIS 白屏问题 |
-| v1.1.0 | 2026-08-25 | 首次云端版本：移除原型模式，按"付款人 / 消费成员"双维度统计 |
-| v1.0.0 | 2026-08-25 | 首发 demo（已废弃） |
+| **最新版** | — | 去 [Releases](https://github.com/wangshaojie/home-ledger/releases) 看 |
 
 所有历史版本见 [GitHub Releases](https://github.com/wangshaojie/home-ledger/releases)。
 
