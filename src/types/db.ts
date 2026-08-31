@@ -44,7 +44,7 @@ export interface DbExpense {
 }
 
 /**
- * v1.1 家庭成员（不再直接用 profiles 当消费归属）
+ * v1.1 家庭成员（不再直接用 profiles 当消费成员）
  * - adult: linked_profile_id 非空，对应一个登录用户
  * - child/pet: linked_profile_id 为 NULL，没有自己的账号，由父母代记账
  */
