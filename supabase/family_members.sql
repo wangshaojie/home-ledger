@@ -2,7 +2,7 @@
 -- 家庭记账 · family_members 表（v1.1）
 --
 -- 背景：原来 expenses.member_id 直接 FK 到 profiles.id，
--- 意味着要记账选"消费归属"必须先有 auth user。
+-- 意味着要记账选"消费成员"必须先有 auth user。
 -- 这导致小孩、宠物、未注册的家人都没法记账（父母没法替他们建账）。
 --
 -- v1.1 方案：引入 family_members 表，记录"家庭内的成员身份"，
