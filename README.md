@@ -27,7 +27,7 @@
 
 - 🏠 **多成员家庭** — 邀请配偶、子女、父母一起记，所有人共享一份账本
 - 📊 **可视化统计** — 月度趋势、分类占比、成员贡献，ECharts 图表一目了然
-- 👥 **成员支出分析** — 按"付款人"和"消费归属"两个维度看每个人花了多少、钱算谁头上
+- 👥 **成员支出分析** — 按"付款人"和"消费成员"两个维度看每个人花了多少、钱算谁头上
 - 🔐 **隐私可控** — 家庭数据走 Supabase Row Level Security 隔离，跨家庭完全不可见
 - 💰 **多支付账户** — 微信、支付宝、银行卡、现金分别管理
 - 🏷️ **智能分类** — 常用分类 + 自定义分类 + 最近使用快速选择
@@ -56,7 +56,7 @@
 Get-FileHash .\HomeLedger-1.1.0-portable-x64.exe -Algorithm SHA256
 ```
 
-对比哈希值是否与 [Release 资产页](https://github.com/wangshaojie/home-ledger/releases/latest) 一致。
+对比哈希值是否与 [Release 资产页](https://github.com/wangshaojie/home-ledger/releases) 一致。
 
 ### 第一次使用
 
