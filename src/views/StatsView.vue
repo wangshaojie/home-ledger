@@ -174,7 +174,7 @@ const accountPieOption = computed(() => ({
   },
   series: [
     {
-      name: '账户占比',
+      name: '支付账户占比',
       type: 'pie',
       radius: ['45%', '70%'],
       center: ['50%', '45%'],
