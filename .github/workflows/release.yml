@@ -54,18 +54,28 @@ jobs:
       - name: Package with electron-builder (NSIS)
         # 先打 NSIS --publish always 上传 asset + latest.yml
         # portable 分两次调是为避免 CI 上 portable/NSIS 同时跑 artifactName 撞车
+        # ⚠️ v1.1.9 fix: 必传 VITE_* env（vite-plugin-electron/simple 会在
+        # electron-builder step 二次 build renderer，不传会拿到空字符串，
+        # 装上后白屏报 "Invalid API key"）
         run: pnpm exec electron-builder --win nsis --x64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Package with electron-builder (Portable)
         # portable 段 artifactName 固定 "HomeLedger-${version}-portable-${arch}.${ext}"
         # 不用 ${productName} 避免 productName 映射 (家庭记账 -> HomeLedger) 误替换
         # CI 跑两次（两次 electron-builder）能看各自日志, portable publish 阶段
         # 默认走 GitHub provider 自动上传到 release
+        # ⚠️ v1.1.9 fix: 同 NSIS 段，必传 VITE_* env
         run: pnpm exec electron-builder --win portable --x64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
