@@ -518,7 +518,7 @@ async function wipeLocalData() {
         </el-form-item>
         <el-form-item label="名字">
           <el-input v-model="addMemberName" :placeholder="addMemberType === 'pet' ? '如：旺财' : '如：小明'" maxlength="20" show-word-limit />
-          <div class="hint">未关联账号。记账时选择该成员作为"消费归属"，钱算 ta 头上（也支持你付钱给 ta 买东西）</div>
+          <div class="hint">未关联账号。记账时选择该成员作为"消费成员"，钱算 ta 头上（也支持你付钱给 ta 买东西）</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -597,100 +597,119 @@ async function wipeLocalData() {
 .section {
   background: #fff;
   border-radius: 12px;
-  padding: 28px 32px;
-  margin-bottom: 16px;
+  padding: 24px 28px;
   box-shadow: var(--shadow-card);
+  margin-bottom: 16px;
 }
 .section-title {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--color-text);
-  margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 16px;
 }
 .section-sub {
   font-size: 14px;
   font-weight: 500;
   color: var(--color-text);
-  margin-bottom: 12px;
-}
-
-.info-row {
-  display: flex;
-  padding: 10px 0;
-  font-size: 14px;
+  margin: 12px 0 8px;
 }
 .section-hint {
   color: var(--color-text-soft);
-  font-size: 12px;
+  font-size: 13px;
   margin: 0 0 12px;
+  line-height: 1.5;
+}
+.info-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 14px;
 }
 .info-label {
-  width: 120px;
+  width: 100px;
   color: var(--color-text-soft);
 }
 .info-value {
   color: var(--color-text);
 }
-
-.pwd-form {
-  max-width: 480px;
-}
-
-.invite-row {
+.pwd-form .code-row {
   display: flex;
+  gap: 10px;
   align-items: center;
-  gap: 12px;
-}
-.invite-code {
-  font-family: 'Menlo', 'Monaco', monospace;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: 4px;
-  color: var(--color-primary);
-  background: var(--color-primary-soft);
-  padding: 8px 16px;
-  border-radius: 6px;
 }
 .hint {
   color: var(--color-text-soft);
   font-size: 12px;
+  margin-top: 4px;
 }
-
+.invite-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.invite-code {
+  font-family: ui-monospace, Cascadia Code, monospace;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  color: var(--color-primary);
+  background: #fafbfc;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
 .member-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   padding: 12px 0;
-  border-bottom: 1px solid #f0f1f2;
+  border-bottom: 1px solid var(--color-border);
 }
 .member-row:last-child {
   border-bottom: none;
 }
+.member-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .member-name {
   font-size: 14px;
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.member-type-icon {
+  font-size: 16px;
 }
 .role-tag {
-  margin-left: 6px;
   font-size: 11px;
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
   padding: 1px 6px;
   border-radius: 3px;
-  font-weight: normal;
+  background: #ebeef5;
+  color: #909399;
 }
 .role-tag.self {
+  background: #fdf6ec;
+  color: var(--color-primary);
+}
+.role-tag.child {
   background: #ecf5ff;
-  color: #5b8ff9;
+  color: #409eff;
+}
+.role-tag.pet {
+  background: #f0f9eb;
+  color: #67c23a;
 }
 .member-email {
-  font-size: 12px;
   color: var(--color-text-soft);
-  margin-top: 2px;
+  font-size: 12px;
 }
-
+.empty-mini {
+  text-align: center;
+  color: #c0c4cc;
+  padding: 20px 0;
+  font-size: 13px;
+}
 .cat-list {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -710,18 +729,5 @@ async function wipeLocalData() {
 .cat-row-name {
   flex: 1;
   font-size: 14px;
-}
-.default-tag {
-  font-size: 11px;
-  color: #909399;
-  background: #ebeef5;
-  padding: 1px 6px;
-  border-radius: 3px;
-}
-.empty-mini {
-  text-align: center;
-  color: #c0c4cc;
-  padding: 16px 0;
-  font-size: 13px;
 }
 </style>
