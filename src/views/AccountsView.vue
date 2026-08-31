@@ -35,11 +35,11 @@ function closeAccountDialog() {
 async function saveAccount() {
   const name = newAccountName.value.trim()
   if (!name) {
-    notify.warning('请输入账户名')
+    notify.warning('请输入支付账户名')
     return
   }
   if (accountStore.items.some((a) => a.name === name && a.id !== editingAccountId.value)) {
-    notify.error('账户名已存在')
+    notify.error('支付账户名已存在')
     return
   }
   let r
@@ -58,7 +58,7 @@ async function saveAccount() {
 
 async function removeAccount(id: string) {
   try {
-    await ElMessageBox.confirm('确定删除此账户？', '提示', {
+    await ElMessageBox.confirm('确定删除此支付账户？', '提示', {
       type: 'warning',
       confirmButtonText: '删除',
       cancelButtonText: '取消'
@@ -72,10 +72,10 @@ async function removeAccount(id: string) {
 
 <template>
   <div class="accounts">
-    <h2 class="page-title">账户管理</h2>
+    <h2 class="page-title">支付账户管理</h2>
 
     <div class="section">
-      <p class="hint">记账时选择用什么付的（如：花呗、招行信用卡）。系统默认账户不可删，自定义可增删改。</p>
+      <p class="hint">记账时选择用哪个支付账户（如：花呗、招行信用卡）。系统默认支付账户不可删，自定义支付账户可增删改。</p>
 
       <div class="acc-list">
         <div v-for="a in accountStore.items" :key="a.id" class="acc-row">
@@ -95,13 +95,13 @@ async function removeAccount(id: string) {
 
       <el-button type="primary" plain style="margin-top: 12px" @click="openAddAccount">
         <el-icon><Plus /></el-icon>
-        <span style="margin-left: 4px">新增账户</span>
+        <span style="margin-left: 4px">新增支付账户</span>
       </el-button>
     </div>
 
-    <el-dialog v-model="showAddAccount" :title="editingAccountId ? '编辑账户' : '新增账户'" width="400px">
+    <el-dialog v-model="showAddAccount" :title="editingAccountId ? '编辑支付账户' : '新增支付账户'" width="400px">
       <el-form label-position="top">
-        <el-form-item label="账户名">
+        <el-form-item label="支付账户名">
           <el-input v-model="newAccountName" placeholder="如：招行信用卡 / 京东白条" maxlength="10" />
         </el-form-item>
         <el-form-item label="图标 (emoji)">
