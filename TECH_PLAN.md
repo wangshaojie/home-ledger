@@ -131,7 +131,7 @@
 | `id` | uuid PK | |
 | `family_id` | uuid | FK（冗余，简化 RLS 性能） |
 | `creator_id` | uuid | FK → `auth.users.id`（创建者，唯一可编辑/删除） |
-| `member_id` | uuid | FK → `auth.users.id`（消费归属人） |
+| `member_id` | uuid | FK → `auth.users.id`（消费成员） |
 | `category_id` | uuid | FK → `categories.id` |
 | `amount` | numeric(10,2) | > 0，<= 999999.99 |
 | `spent_at` | timestamptz | 消费时间（可过去，不可未来） |
@@ -139,7 +139,7 @@
 | `image_urls` | text[] | 图片 URL 数组 |
 | `created_at` | timestamptz | |
 | `updated_at` | timestamptz | |
-| `deleted_at` | timestamptz null | 软删（回收站） |
+| `deleted_at` | timestamptz null | 软删（回收站迭代用） |
 
 索引：`(family_id, spent_at desc)`、`(family_id, member_id)`、`(family_id, category_id)`
 
