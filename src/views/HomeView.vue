@@ -73,7 +73,7 @@ const filterRange = computed({
 // 当前生效的筛选条件 chips（时间维度走顶部 radio,这里只展示成员/分类/金额）
 const activeFilterChips = computed(() => {
   const chips: { key: string; label: string; onClose: () => void }[] = []
-  // 消费成员
+  // 成员
   for (const mid of store.filter.memberIds) {
     const m = familyStore.members.find((x) => x.id === mid)
     const label = m ? displayNameOf(m) : mid.slice(0, 8)
@@ -191,6 +191,16 @@ function closeForm() {
 }
 
 async function submitForm() {
+  // 防御性归一：el-date-picker 默认写回 Date 对象，但若加了 value-format='x' 会变成 number
+  // 这里统一转成 Date 再 toISOString,避免 "toISOString is not a function" 报错
+  const spentAtDate =
+    form.value.spentAt instanceof Date
+      ? form.value.spentAt
+      : new Date(form.value.spentAt)
+  if (Number.isNaN(spentAtDate.getTime())) {
+    notify.error('消费时间无效')
+    return
+  }
   const amt = parseFloat(form.value.amount)
   if (!amt || amt <= 0 || amt > 999999.99) {
     notify.error('金额必须大于 0 且不超过 999999.99')
@@ -220,7 +230,7 @@ async function submitForm() {
       accountId: form.value.accountId,
       memberId: form.value.memberId,
       payerId: form.value.payerId,
-      spentAt: form.value.spentAt.toISOString(),
+      spentAt: spentAtDate.toISOString(),
       note: form.value.note.trim().slice(0, 200)
     })
     if (r.ok) {
@@ -238,7 +248,7 @@ async function submitForm() {
       accountId: form.value.accountId,
       memberId: form.value.memberId,
       payerId: form.value.payerId,
-      spentAt: form.value.spentAt.toISOString(),
+      spentAt: spentAtDate.toISOString(),
       note: form.value.note.trim().slice(0, 200)
     })
     if (r.ok) {
@@ -499,7 +509,6 @@ function fmtMoney(n: number) {
               style="width: 100%"
               :max-date="new Date()"
               format="YYYY-MM-DD HH:mm"
-              value-format="x"
             />
           </el-form-item>
         </div>
@@ -608,10 +617,15 @@ function fmtMoney(n: number) {
   margin: 0 0 4px;
 }
 .page-sub {
-  margin: 0;
   color: var(--color-text-soft);
   font-size: 14px;
+  margin: 0;
 }
+.add-btn {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
 .stat-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -621,20 +635,17 @@ function fmtMoney(n: number) {
 .stat-card {
   background: #fff;
   border-radius: 12px;
-  padding: 20px 24px;
+  padding: 20px;
   box-shadow: var(--shadow-card);
 }
 .stat-card.highlight {
-  background: linear-gradient(135deg, #f56c2c, #ff9d4d);
-  color: #fff;
-}
-.stat-card.highlight .stat-label {
-  color: rgba(255, 255, 255, 0.85);
+  background: linear-gradient(135deg, #fff1ea, #fff8f3);
+  border: 1px solid var(--color-primary);
 }
 .stat-label {
   color: var(--color-text-soft);
   font-size: 13px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .stat-value {
   font-size: 24px;
@@ -642,49 +653,57 @@ function fmtMoney(n: number) {
   color: var(--color-text);
   font-variant-numeric: tabular-nums;
 }
-.stat-card.highlight .stat-value {
-  color: #fff;
-}
+
 .filter-bar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   margin-bottom: 16px;
 }
+
 .active-filters {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
   flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: #f0f7ff;
+  border-radius: 8px;
+  border: 1px solid #d6e8ff;
 }
-.active-label {
+.active-filters .active-label {
   font-size: 13px;
-  color: var(--color-text-soft);
+  color: #606266;
+  font-weight: 500;
 }
+
 .list-card {
   background: #fff;
   border-radius: 12px;
-  padding: 4px 24px;
+  padding: 8px 0;
   box-shadow: var(--shadow-card);
-  margin-bottom: 20px;
 }
 .list-head,
 .list-row {
   display: grid;
-  grid-template-columns: 100px 1.4fr 1fr 1fr 1.4fr 90px 90px;
+  grid-template-columns: 1.1fr 0.7fr 1.1fr 0.9fr 1.4fr 1fr 0.7fr;
   align-items: center;
-  gap: 12px;
-  padding: 12px 0;
+  padding: 12px 20px;
   font-size: 13px;
 }
 .list-head {
   color: var(--color-text-soft);
   font-weight: 500;
   border-bottom: 1px solid var(--color-border);
+  font-size: 12px;
+  padding: 12px 20px 8px;
 }
 .list-row {
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid #f0f1f2;
+  transition: background 0.1s;
+}
+.list-row:hover {
+  background: #fafbfc;
 }
 .list-row:last-child {
   border-bottom: none;
@@ -697,30 +716,28 @@ function fmtMoney(n: number) {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  line-height: 1.3;
 }
 .member-main {
   color: var(--color-text);
-  font-weight: 500;
 }
 .member-payer {
   font-size: 11px;
   color: var(--color-text-soft);
 }
-.cat-chip,
-.acc-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: #fafbfc;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 12px;
+.payer-prefix {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 11px;
 }
 .cell-note {
   color: var(--color-text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding-right: 8px;
 }
 .cell-amount {
   text-align: right;
@@ -731,21 +748,206 @@ function fmtMoney(n: number) {
 .cell-actions {
   text-align: right;
 }
-.empty {
-  padding: 60px 0;
-  text-align: center;
-  color: #c0c4cc;
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  background: var(--color-primary-soft);
+  border-radius: 12px;
+  color: var(--color-primary);
+  font-size: 12px;
 }
-.expense-form .form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+.acc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  background: #ecf5ff;
+  border-radius: 12px;
+  color: #5b8ff9;
+  font-size: 12px;
 }
-.amount-prepend {
-  font-weight: 600;
+.acc-icon {
+  font-size: 14px;
+}
+.cat-icon {
+  font-size: 14px;
+}
+.img-icon {
+  font-size: 16px;
   color: var(--color-primary);
 }
 .muted {
+  color: #c0c4cc;
+}
+.empty {
+  text-align: center;
+  color: #c0c4cc;
+  padding: 60px 0;
+  font-size: 14px;
+}
+
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+.cat-cell {
+  border: 1px solid var(--color-border);
+  background: #fff;
+  padding: 10px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
   color: var(--color-text-soft);
+  transition: all 0.15s;
+}
+.cat-cell:hover {
+  border-color: var(--color-primary);
+}
+.cat-cell.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+.cat-icon-lg {
+  font-size: 22px;
+}
+.hint {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+}
+
+/* === 记账弹框:两列紧凑布局 === */
+.expense-form :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+.expense-form :deep(.el-form-item__label) {
+  padding-bottom: 2px;
+  line-height: 1.2;
+  font-size: 13px;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+.form-row :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+.form-full {
+  display: block;
+}
+
+/* === 分步弹框：Step 1 主表单 === */
+.amount-prepend {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-primary);
+  letter-spacing: 0;
+}
+
+.cat-pick-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cat-pick-btn:hover {
+  border-color: var(--color-primary);
+}
+.cat-pick-btn.empty {
+  color: #c0c4cc;
+}
+.cat-pick-btn.empty:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.cat-pick-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+.cat-pick-name {
+  font-size: 15px;
+  font-weight: 500;
+  flex: 1;
+  text-align: left;
+}
+.cat-pick-arrow {
+  color: #c0c4cc;
+  font-size: 14px;
+}
+
+/* === 分步弹框：Step 2 分类选择页 === */
+.cat-step {
+  max-height: 56vh;
+  overflow-y: auto;
+  padding: 4px 4px 8px;
+}
+.cat-section {
+  margin-bottom: 14px;
+}
+.cat-section:last-child {
+  margin-bottom: 0;
+}
+.cat-section-title {
+  font-size: 12px;
+  color: var(--color-text-soft);
+  font-weight: 500;
+  margin-bottom: 8px;
+  padding-left: 2px;
+}
+.cat-grid-6 {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+.cat-cell-sm {
+  border: 1px solid var(--color-border);
+  background: #fff;
+  padding: 10px 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-soft);
+  transition: all 0.12s;
+  min-height: 72px;
+  justify-content: center;
+}
+.cat-cell-sm:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+.cat-cell-sm.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+.cat-icon-md {
+  font-size: 22px;
+  line-height: 1;
+}
+.cat-name-sm {
+  font-size: 12px;
+  line-height: 1.2;
 }
 </style>
