@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { errText } from '@/lib/notify'
-import { enableRemember30Days, disableRemember } from '@/lib/supabaseStorage'
+import { enableRemember30Days, disableRemember, isRememberExpired } from '@/lib/supabaseStorage'
 
 /**
  * v1.1 登录体系
@@ -54,6 +54,16 @@ export const useAuthStore = defineStore('auth', () => {
   async function init() {
     if (initialized.value) return
     initialized.value = true
+
+    // v1.1.9 修复登录态掉线：
+    // - 不在 supabaseStorage.getItem 里拦截（已删）
+    // - 30 天免登录标记在入口处手动检查：过期就清 session，否则走 supabase 默认 refresh 链
+    if (isRememberExpired()) {
+      try {
+        await supabase.auth.signOut()
+      } catch {}
+      // 清完后再 getSession() 一次，确保内存里没有残留 session
+    }
 
     const { data } = await supabase.auth.getSession()
     if (data.session) {
