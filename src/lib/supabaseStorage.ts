@@ -1,19 +1,19 @@
-import type { SupportedStorage } from '@supabase/supabase-js'
-
 /**
- * 30 天免登录 localStorage 适配器
+ * 30 天免登录 · 标记工具
  *
- * 原理：
- * - supabase 默认 `persistSession: true`，session 写到 `sb-<ref>-auth-token` key
- * - 默认有效期由 JWT(1h) + refresh_token(30d) 决定；refresh_token 30 天
- * - 我们加一个全局 `homeledger_session_expires_at` 标记：
- *   - 标记 > 0：30 天免登录开启，session 有效
- *   - 标记 <= 0 或不存在：要求重新登录
- * - 每次读取 session 时检查这个标记，过期就当未登录
- * - 关闭"30 天免登录"时清掉这个标记
+ * 背景：
+ * - v1.1.0 之前用自定义 `supabaseStorage` 适配器在 `getItem` 里拦截 session 读，
+ *   但这破坏了 supabase-js v2.45+ 的 autoRefreshToken 链，导致 access_token
+ *   1 小时过期后冷启动 → 整条 refresh 链断 → 登录态掉。
+ * - v1.1.9 改为：supabase 用默认 localStorage 行为（让它自己 refresh_token 续期），
+ *   30 天免登录的"开关"完全在 `auth.init()` 入口手动判断，标记过期就 signOut。
  *
- * 用户主动点"清除本地数据"或卸载应用时，supabase auth signOut + removeItem
- * 会自然把这个标记一并清掉（因为 homeledger_ 前缀统一被 wipeAllLocalData 处理）
+ * 这里只保留 3 个工具函数：
+ *   - isRememberExpired()    检查标记是否过期
+ *   - enableRemember30Days()  登录成功后写标记（30 天后过期）
+ *   - disableRemember()       主动关闭免登录 / 登出时清标记
+ *
+ * 标记 key：homeledger_session_expires_at（毫秒时间戳）
  */
 const REMEMBER_DAYS = 30
 const EXPIRY_KEY = 'homeledger_session_expires_at'
@@ -52,28 +52,4 @@ export function enableRemember30Days(): void {
 
 export function disableRemember(): void {
   clearExpiresAt()
-}
-
-export const supabaseStorage: SupportedStorage = {
-  getItem(key: string): string | null {
-    if (isRememberExpired()) {
-      // 30 天到期：session 视为失效
-      return null
-    }
-    try {
-      return localStorage.getItem(key)
-    } catch {
-      return null
-    }
-  },
-  setItem(key: string, value: string): void {
-    try {
-      localStorage.setItem(key, value)
-    } catch {}
-  },
-  removeItem(key: string): void {
-    try {
-      localStorage.removeItem(key)
-    } catch {}
-  }
 }
