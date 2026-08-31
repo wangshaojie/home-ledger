@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Windows 桌面端家庭支出记账软件</strong><br/>
-  Electron 32 · Vite 5 · Vue 3.5 · Pinia · TypeScript · Element Plus · ECharts · Supabase
+  共享账本 · 多人记账 · 自动统计
 </p>
 
 <p align="center">
@@ -16,132 +16,127 @@
   <a href="https://github.com/wangshaojie/home-ledger/releases">
     <img alt="所有发布" src="https://img.shields.io/github/downloads/wangshaojie/home-ledger/total?style=flat-square&label=%E4%B8%8B%E8%BD%BD%E9%87%8F" />
   </a>
-  <a href="https://github.com/wangshaojie/home-ledger/blob/main/LICENSE">
-    <img alt="License" src="https://img.shields.io/badge/license-UNLICENSED-lightgrey?style=flat-square" />
-  </a>
 </p>
 
-## 简介
+## 这是什么
 
-家庭记账是一款**云端多成员**的家庭支出记账桌面应用：
+一款**给家庭用的**记账软件——一台电脑记账，全家都能看到，账本永远在云端不会丢。
 
-- 🏠 **多成员家庭** — 邀请配偶、子女、父母一起记，所有人共享一份账本
-- 📊 **可视化统计** — 月度趋势、分类占比、成员贡献，ECharts 图表一目了然
-- 👥 **成员支出分析** — 按"付款人"和"消费成员"两个维度看每个人花了多少、钱算谁头上
-- 🔐 **隐私可控** — 家庭数据走 Supabase Row Level Security 隔离，跨家庭完全不可见
-- 💰 **多支付账户** — 微信、支付宝、银行卡、现金分别管理
-- 🏷️ **智能分类** — 常用分类 + 自定义分类 + 最近使用快速选择
-- 📧 **邮箱注册 + 验证** — 注册后通过邮件 OTP 激活，密码登录
+- 🏠 **多人共享** — 一家人共用一个账本，谁都能记谁都能看
+- 📊 **自动统计** — 这个月花了多少、哪类花得多、谁花得多，一目了然
+- 🔐 **隐私隔离** — 数据在云端按家庭隔离，别的家庭完全看不到你的账
+- 💰 **支付账户管理** — 微信、支付宝、信用卡分开记
 
-> 详细介绍与架构见 [TECH_PLAN.md](./TECH_PLAN.md)。
+## 下载
 
-## ⬇️ 下载
+> 系统要求：**Windows 10 / 11（64 位）**
 
-> 最新稳定版：[Releases 页面](https://github.com/wangshaojie/home-ledger/releases/latest)
-> 系统要求：**Windows 10 / 11 (x64)**
+| 选择 | 适合你 | 下载 |
+|---|---|---|
+| 🟢 **便携版**（免安装） | 想直接用、不想装东西 | [下载](https://github.com/wangshaojie/home-ledger/releases/latest/download/HomeLedger-1.1.9-portable-x64.exe) |
+| 🔵 **安装版**（自动更新） | 长期用、想开机自启 | [下载](https://github.com/wangshaojie/home-ledger/releases/latest/download/HomeLedger-setup-1.1.9-x64.exe) |
 
-### 安装包
+> 不确定选哪个？**选便携版**——双击就能用，不写注册表、不留垃圾，扔 U 盘里也能跑。
 
-| 类型 | 说明 | 推荐场景 | 直链下载 |
-|---|---|---|---|
-| 🟢 **便携版** (Portable) | 单个 `.exe`，免安装，双击即用，不写注册表 | 临时使用、U 盘携带、不想留痕迹 | [HomeLedger-1.1.0-portable-x64.exe](https://github.com/wangshaojie/home-ledger/releases/latest/download/HomeLedger-1.1.0-portable-x64.exe) |
-| 🔵 **安装版** (NSIS) | 标准安装流程，带桌面/开始菜单快捷方式 | 长期使用、需要自动更新 | [HomeLedger-1.1.0-x64.exe](https://github.com/wangshaojie/home-ledger/releases/latest/download/HomeLedger-1.1.0-x64.exe) |
+## 第一次使用
 
-### 校验
+3 步搞定。
 
-每个 Release 资产页都附带 SHA256 校验码。验证方法：
+### 1️⃣ 下载并打开
 
-```powershell
-# Windows PowerShell
-Get-FileHash .\HomeLedger-1.1.0-portable-x64.exe -Algorithm SHA256
-```
+下好 .exe 后双击：
 
-对比哈希值是否与 [Release 资产页](https://github.com/wangshaojie/home-ledger/releases) 一致。
+- **便携版**：直接双击 `HomeLedger-1.1.9-portable-x64.exe`
+- **安装版**：双击 `HomeLedger-setup-1.1.9-x64.exe` → 一路 "下一步"
 
-### 第一次使用
+> ⚠️ Windows 第一次打开可能会弹"未知发布者"警告，点"仍要运行"就行。
 
-1. **创建 Supabase 项目**：按 [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) 10-15 分钟搞定（建项目 + 跑 SQL）
-2. 下载并运行安装包
-3. 注册账号（邮箱 + 密码）→ 收验证邮件 → 输入 6 位 OTP 激活
-4. 第一个账号会被引导创建家庭、邀请其他成员
-5. 登录后即可记账、查统计
+### 2️⃣ 注册账号 + 创建家庭
 
-> **不再支持原型模式**。所有数据存 Supabase，本地不存业务数据（仅缓存 session 用于免登录）。
+应用打开后是登录页：
+
+1. 点 **"注册"** 标签
+2. 填邮箱 + 设置密码
+3. 去邮箱收 6 位验证码（5 分钟内有效）→ 输进去
+4. 验证通过后会自动跳到"创建家庭"页
+5. 填个家庭名（如"小明的家"）→ 创建
+
+### 3️⃣ 开始记账
+
+回到首页，点右上角 **"+ 记一笔"** ：
+
+- 填金额 → 选分类（如"餐饮"）→ 选消费成员 → 选付款人 → 选支付账户 → 保存
+
+首页能看到本月所有账单，统计页有图表。
+
+> 勾"30 天免登录"后，下次打开应用不用再输密码。
+
+## 邀请家人一起用
+
+1. **设置 → 家庭设置 → 邀请码**（6 位大写字母）→ 点"复制"
+2. 把邀请码发给家人
+3. 家人下载 app → 注册 → 选"用邀请码加入家庭" → 输邀请码
+4. 家庭成员可以共记共看同一份账本
+
+## 常见问题
+
+<details>
+<summary><b>收不到验证邮件怎么办？</b></summary>
+
+- 检查垃圾邮件箱
+- 确认邮箱地址没填错
+- 等 30 秒再点"重新发送验证码"（1 分钟 1 次）
+- 实在收不到换个邮箱（QQ / 163 / Gmail 都行）
+</details>
+
+<details>
+<summary><b>便携版怎么更新到新版本？</b></summary>
+
+下新版 .exe 覆盖老的就行。**数据在云端**，本地只存登录态，覆盖不会丢数据。
+</details>
+
+<details>
+<summary><b>安装版怎么更新？</b></summary>
+
+应用启动时会自动检查更新，弹窗问"是否升级"→ 点"立即下载"→ 下完自动重启。
+</details>
+
+<details>
+<summary><b>数据安全吗？丢了怎么办？</b></summary>
+
+数据在 Supabase 云端（专业版数据库厂商），自动备份。**卸载 app 不会丢数据**；删除账号前会要你确认。
+</details>
+
+<details>
+<summary><b>多设备能用吗？</b></summary>
+
+能。同一账号在任意电脑登录，看到的是同一份账本。
+</details>
+
+<details>
+<summary><b>登录状态怎么没了？</b></summary>
+
+勾了"30 天免登录"的话应该能撑 30 天。如果 1 小时就掉（v1.1.0 旧版的 bug），升到 v1.1.9 解决。
+</details>
 
 ## 📝 更新日志
 
-所有版本更新记录见 [GitHub Releases](https://github.com/wangshaojie/home-ledger/releases)。
-
-### 最近版本
-
-| 版本 | 状态 | 关键变更 |
+| 版本 | 日期 | 关键变更 |
 |---|---|---|
-| v1.1.0 | 2026-08-25 | **线上模式**：移除原型模式，强制要求 Supabase；新增按"付款人 / 消费归属"双维度的成员支出统计；Windows 安装包文件名规范化 |
-| v1.0.0 | 2026-08-25 (已废弃) | 首发：带原型模式的 demo 版，**已删除 release**，请使用 v1.1.0 |
+| **v1.1.9** | 2026-08-31 | 🐛 修复登录态 1 小时就掉的 bug；字段文案统一为"消费成员 / 支付账户"；CI 打包修 NSIS 白屏问题 |
+| v1.1.0 | 2026-08-25 | 首次云端版本：移除原型模式，按"付款人 / 消费成员"双维度统计 |
+| v1.0.0 | 2026-08-25 | 首发 demo（已废弃） |
 
-> 版本号跟随 `package.json` 的 `version` 字段。推送形如 `v1.0.0` 的 tag 即可触发 [`.github/workflows/release.yml`](./.github/workflows/release.yml) 自动打包并发版。
+所有历史版本见 [GitHub Releases](https://github.com/wangshaojie/home-ledger/releases)。
 
-## 🔄 自动更新
+---
 
-v1.2 起，应用启动时自动检查新版本并提示升级。配置方法见 [docs/auto-update.md](./docs/auto-update.md)。
+## 🛠️ 开发者 / 部署
 
-## 开发
+- 想自己部署 Supabase / 改源码 / 跑 dev / 打新包 → 看 [CONTRIBUTING.md](./CONTRIBUTING.md)
+- 技术方案 → [TECH_PLAN.md](./TECH_PLAN.md)
+- Supabase 建表 SQL → [supabase/](./supabase/) 目录
 
-```bash
-# 安装依赖
-pnpm install
+## License
 
-# 启动 dev（Vite + Electron，dev 模式自动开 DevTools）
-pnpm dev
-
-# 仅类型检查（无需启动 dev server）
-pnpm exec vue-tsc --noEmit
-```
-
-## 两种模式
-
-项目根据 `.env` 是否配置 `VITE_SUPABASE_URL` 自动切换：
-
-| 模式 | 触发 | 行为 |
-|---|---|---|
-| **原型模式** | 没填 env | 前端 mock 数据，验证码恒为 `888888`，密码 `888888`，所有数据前端 localStorage |
-| **生产模式** | env 已填 | 直连 Supabase Auth + Postgres + RLS 隔离 |
-
-> dev/原型模式不需要任何后端服务，开箱即用。
-
-## Supabase 部署
-
-详见 [SUPABASE_SETUP.md](./SUPABASE_SETUP.md)（10-15 分钟完成）。
-
-## 目录
-
-```
-electron/        Electron 主进程 + preload（生产模式默认不开 DevTools）
-src/
-  views/         5 个核心页面
-  components/    AppLayout 等
-  stores/        auth / family / category / expense / ui
-  lib/           supabase client / notify / resetBusinessState
-  router/        路由 + 守卫
-  types/db.ts    数据库行类型
-supabase/        schema / rls / seed SQL
-TECH_PLAN.md     技术方案
-SUPABASE_SETUP.md  部署指引
-```
-
-## 关键设计决策
-
-- **生产模式不自动开 DevTools**：dev 自动开，prod 默认关，需强制开加 `--open-devtools`
-- **账号切换重置业务 store**：避免 A→B 数据残留（App.vue watch uid + resetBusinessState 工具）
-- **mock 模式兼容**：所有 store 在没 supabase 时走前端假数据，方便本地开发
-- **RLS 隔离**：同家庭可见，跨家庭完全不可见
-- **软删账单**：`expenses.deleted_at` 字段预留，回收站迭代用
-- **图片上传** v1.1 暂未做（disabled），v1.2 接 Supabase Storage
-
-## 后续迭代 (v1.2+)
-
-- 图片上传（Supabase Storage）
-- Excel 导出
-- 回收站
-- 邮件验证码发原密码找回
-- 自动更新（electron-updater）
+UNLICENSED（私有项目，作者保留所有权利）
