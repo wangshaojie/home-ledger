@@ -184,7 +184,7 @@ function buildOption(rows: MemberAgg[], total: number, title: string) {
 }
 
 const creatorOption = computed(() => buildOption(byCreator.value, creatorTotal.value, '按付款人'))
-const memberOption = computed(() => buildOption(byMember.value, memberTotal.value, '按消费归属'))
+const memberOption = computed(() => buildOption(byMember.value, memberTotal.value, '按消费成员'))
 const singleOption = computed(() => buildOption(byMember.value, singleTotal.value, '总支出'))
 </script>
 
@@ -234,7 +234,7 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
       </div>
       <div class="chart-cell">
         <div class="chart-title">
-          <span>按消费归属（钱算谁的）</span>
+          <span>按消费成员（钱算谁头上）</span>
           <span class="total">¥{{ memberTotal.toFixed(2) }}</span>
         </div>
         <v-chart
@@ -245,7 +245,7 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
           @click="(p: any) => onBarClick(p.data?.memberId)"
         />
         <div v-else class="empty-tip">本月还没有支出数据</div>
-        <div class="hint">点击柱子查看该成员的账单</div>
+        <div class="hint">点击柱子查看该消费成员的账单</div>
       </div>
     </div>
   </div>
