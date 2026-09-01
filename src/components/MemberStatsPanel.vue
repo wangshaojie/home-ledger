@@ -142,12 +142,19 @@ const emit = defineEmits<{
   (e: 'jump-to-list', memberId: string): void
 }>()
 
+// 柱条右侧的金额标签：大金额缩写为"万"，避免超出绘图区被裁剪
+function formatBarLabel(v: number) {
+  if (v >= 10000) return '¥' + (v / 10000).toFixed(1) + '万'
+  return '¥' + Math.round(v)
+}
+
 // 横向 bar 配置
 function buildOption(rows: MemberAgg[], total: number, title: string) {
   // 按金额降序
   const sorted = [...rows].sort((a, b) => b.total - a.total)
   return {
-    grid: { left: 40, right: 30, top: 30, bottom: 30, containLabel: true },
+    // right 需给右侧金额标签留足空间（series label 不参与 containLabel 计算）
+    grid: { left: 40, right: 90, top: 30, bottom: 30, containLabel: true },
     tooltip: {
       trigger: 'item',
       formatter: (p: any) => {
@@ -176,7 +183,7 @@ function buildOption(rows: MemberAgg[], total: number, title: string) {
         label: {
           show: true,
           position: 'right',
-          formatter: (p: any) => '¥' + (p.value as number).toFixed(0)
+          formatter: (p: any) => formatBarLabel(p.value as number)
         }
       }
     ]

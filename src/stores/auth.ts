@@ -170,7 +170,11 @@ export const useAuthStore = defineStore('auth', () => {
     return { ok: true }
   }
 
-  async function verifyOtp(email: string, token: string) {
+  /**
+   * @param remember 是否启用 30 天免登录（默认 true）
+   * 登录成功时按该值写/清标记；不勾选则下次启动强制登出
+   */
+  async function verifyOtp(email: string, token: string, remember = true) {
     const { data, error } = await supabase.auth.verifyOtp({
       email,
       token,
@@ -180,12 +184,17 @@ export const useAuthStore = defineStore('auth', () => {
     session.value = data.session
     user.value = data.user
     await refreshProfile()
-    enableRemember30Days()
+    if (remember) enableRemember30Days()
+    else disableRemember()
     await markEmailVerified()
     return { ok: true, message: '登录成功' }
   }
 
-  async function signInWithPassword(email: string, password: string) {
+  /**
+   * @param remember 是否启用 30 天免登录（默认 true）
+   * 登录成功时按该值写/清标记；不勾选则下次启动强制登出
+   */
+  async function signInWithPassword(email: string, password: string, remember = true) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       const code = (error as any).code || ''
@@ -201,7 +210,8 @@ export const useAuthStore = defineStore('auth', () => {
     session.value = data.session
     user.value = data.user
     await refreshProfile()
-    enableRemember30Days()
+    if (remember) enableRemember30Days()
+    else disableRemember()
     // 兼容老用户：登录时如果 profiles.email_verified 没设过，自动标 true
     if (profile.value && profile.value.email_verified !== true) {
       await markEmailVerified()

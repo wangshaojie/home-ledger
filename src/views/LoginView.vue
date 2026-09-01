@@ -5,11 +5,10 @@
  * - 默认展示：邮箱 + 密码登录
  * - 底部入口：注册、忘密（→ 跳 /verify-email）
  */
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { notify } from '@/lib/notify'
 import { useAuthStore } from '@/stores/auth'
-import { enableRemember30Days, disableRemember } from '@/lib/supabaseStorage'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -19,11 +18,6 @@ const password = ref('')
 const submitting = ref(false)
 const remember = ref(true)
 
-watch(remember, (v) => {
-  if (v) enableRemember30Days()
-  else disableRemember()
-})
-
 const emailValid = computed(() => /^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(email.value))
 const canSubmit = computed(
   () => emailValid.value && password.value.length >= 6 && !submitting.value
@@ -32,7 +26,7 @@ const canSubmit = computed(
 async function submit() {
   if (!canSubmit.value) return
   submitting.value = true
-  const r = await auth.signInWithPassword(email.value, password.value)
+  const r = await auth.signInWithPassword(email.value, password.value, remember.value)
   submitting.value = false
   if (r.ok) {
     notify.success(r.message)
