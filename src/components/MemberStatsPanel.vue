@@ -33,7 +33,7 @@ const familyStore = useFamilyStore()
 // 聚合数据
 interface MemberAgg { memberId: string; total: number; name: string }
 
-const byCreator = ref<MemberAgg[]>([])
+const byPayer = ref<MemberAgg[]>([])
 const byMember = ref<MemberAgg[]>([])
 // 聚合请求进行中:用于图表区域的 v-loading
 // 与 store.loading 独立(loadStats 走 aggregateBy* RPC,不挂 store.loading 通道)
@@ -58,31 +58,21 @@ async function loadStats() {
       maxAmount: f.maxAmount
     }
     const since = rangeStartIso(f.range)
-    const [creator, member] = await Promise.all([
-      expenseStore.aggregateByCreator(since, extraFilter),
+    // "按付款人" 用 aggregateByPayer（expenses.payer_id 直接指向 family_members，
+    // 不需要 profile→family_member 翻译，也不会因为多人共用一个登录 profile 而被合并）
+    // "按消费成员" 用 aggregateByMember（钱算谁头上）
+    const [payer, member] = await Promise.all([
+      expenseStore.aggregateByPayer(since, extraFilter),
       expenseStore.aggregateByMember(since, extraFilter)
     ])
     if (seq !== statsSeq) return // 过期请求丢弃
-    // creator 维度: aggregateByCreator 返回的 memberId 实际是 profile.id (expenses.creator_id FK 到 profiles)
-    // 需要翻译成 family_member.id 才能用 familyStore.members 找名字
-    // family_member.linked_profile_id = profile.id
-    function profileToFamilyMemberId(profileId: string): string | null {
-      const fm = familyStore.members.find((x) => x.linked_profile_id === profileId)
-      return fm?.id || null
-    }
-    function resolveName(familyMemberId: string | null, fallback: string): string {
-      if (!familyMemberId) return fallback.slice(0, 8) // 孤儿 profile,显示 ID 前 8 位
+    // payer 维度：memberId 直接就是 family_member.id,直接用 familyStore.members 找名字
+    function resolveName(familyMemberId: string): string {
       const m = familyStore.members.find((x) => x.id === familyMemberId)
-      if (m) return displayNameOf(m)
-      return fallback.slice(0, 8)
+      return m ? displayNameOf(m) : familyMemberId.slice(0, 8)
     }
-    byCreator.value = creator
-      .map((c) => {
-        const fmId = profileToFamilyMemberId(c.memberId)
-        return { memberId: fmId || c.memberId, total: c.total, name: resolveName(fmId, c.memberId) }
-      })
-      .filter((x) => x.memberId) // 孤儿 profile 暂时不显示
-    byMember.value = member.map((m) => ({ ...m, name: resolveName(m.memberId, m.memberId) }))
+    byPayer.value = payer.map((p) => ({ ...p, name: resolveName(p.memberId) }))
+    byMember.value = member.map((m) => ({ ...m, name: resolveName(m.memberId) }))
   } finally {
     if (seq === statsSeq) statsLoading.value = false
   }
@@ -107,7 +97,7 @@ watch(
 const onlyOneMember = computed(() => familyStore.members.length <= 1)
 
 // 总金额
-const creatorTotal = computed(() => byCreator.value.reduce((s, x) => s + x.total, 0))
+const payerTotal = computed(() => byPayer.value.reduce((s, x) => s + x.total, 0))
 const memberTotal = computed(() => byMember.value.reduce((s, x) => s + x.total, 0))
 
 // 单成员时的"全部"总和（直接用 expense filter / items 不准确，用一次额外的全量聚合）
@@ -116,7 +106,7 @@ const memberTotal = computed(() => byMember.value.reduce((s, x) => s + x.total, 
 const singleTotal = computed(() => memberTotal.value)
 
 // 图表标题金额数字滚动过渡
-const creatorTotalDisplay = useAnimatedNumber(() => creatorTotal.value)
+const payerTotalDisplay = useAnimatedNumber(() => payerTotal.value)
 const memberTotalDisplay = useAnimatedNumber(() => memberTotal.value)
 const singleTotalDisplay = useAnimatedNumber(() => singleTotal.value)
 
@@ -234,7 +224,7 @@ function buildOption(rows: MemberAgg[], total: number, title: string) {
   }
 }
 
-const creatorOption = computed(() => buildOption(byCreator.value, creatorTotal.value, '按付款人'))
+const payerOption = computed(() => buildOption(byPayer.value, payerTotal.value, '按付款人'))
 const memberOption = computed(() => buildOption(byMember.value, memberTotal.value, '按消费成员'))
 const singleOption = computed(() => buildOption(byMember.value, singleTotal.value, '总支出'))
 </script>
@@ -269,8 +259,8 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
     <div v-else class="dual-chart">
       <div class="chart-cell">
         <div class="chart-title">
-          <span>按付款人（我付的）</span>
-          <span class="total">¥{{ creatorTotalDisplay.toFixed(2) }}</span>
+          <span>按付款人（谁掏的钱）</span>
+          <span class="total">¥{{ payerTotalDisplay.toFixed(2) }}</span>
         </div>
         <div
           v-loading="statsLoading"
@@ -278,9 +268,9 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
           class="chart-box"
         >
           <v-chart
-            v-if="byCreator.length > 0"
+            v-if="byPayer.length > 0"
             class="chart"
-            :option="creatorOption"
+            :option="payerOption"
             :init-options="{ renderer: 'canvas' }"
             @click="(p: any) => onBarClick(p.data?.memberId)"
           />

@@ -45,7 +45,7 @@ export const useExpenseStore = defineStore('expense', () => {
   const revision = ref(0)
   const loading = ref(false)
   const filter = ref<FilterState>({
-    range: '30d',
+    range: 'today',
     categoryIds: [],
     memberIds: [],
     minAmount: undefined,
@@ -168,6 +168,53 @@ export const useExpenseStore = defineStore('expense', () => {
     const map = new Map<string, number>()
     for (const row of data || []) {
       map.set(row.creator_id, (map.get(row.creator_id) || 0) + Number(row.amount))
+    }
+    return Array.from(map.entries())
+      .map(([memberId, total]) => ({ memberId, total }))
+      .sort((a, b) => b.total - a.total)
+  }
+
+  /**
+   * v1.2.5 成员支出统计 - 按 payer 维度聚合
+   * expenses.payer_id 直接指向 family_members（不是 profile），所以返回的 memberId
+   * 就是 family_member.id，调用方不需要再翻译。相对 aggregateByCreator 的区别：
+   *  - creator: 谁录的（profile，登录用户，家人共用账号时都算同一个人）
+   *  - payer:   谁掏的钱（family_member，每个家庭成员独立统计）
+   * 适合"按付款人"展示——能区分夫妻各自付了多少。
+   */
+  async function aggregateByPayer(
+    startDate: string | null,
+    extraFilter?: {
+      categoryIds?: string[]
+      memberIds?: string[]
+      minAmount?: number
+      maxAmount?: number
+    }
+  ): Promise<{ memberId: string; total: number }[]> {
+    const auth = useAuthStore()
+    const fid = auth.profile?.family_id
+    if (!fid) return []
+    let q = supabase
+      .from('expenses')
+      .select('payer_id, amount')
+      .eq('family_id', fid)
+      .is('deleted_at', null)
+      .not('payer_id', 'is', null)
+    if (startDate) q = q.gte('spent_at', startDate)
+    if (extraFilter?.categoryIds?.length) q = q.in('category_id', extraFilter.categoryIds)
+    if (extraFilter?.memberIds?.length) q = q.in('member_id', extraFilter.memberIds)
+    if (extraFilter?.minAmount != null) q = q.gte('amount', extraFilter.minAmount)
+    if (extraFilter?.maxAmount != null) q = q.lte('amount', extraFilter.maxAmount)
+    const { data, error } = await q
+    if (error) {
+      console.error('aggregateByPayer error', error)
+      return []
+    }
+    const map = new Map<string, number>()
+    for (const row of data || []) {
+      const key = row.payer_id as string
+      if (!key) continue
+      map.set(key, (map.get(key) || 0) + Number(row.amount))
     }
     return Array.from(map.entries())
       .map(([memberId, total]) => ({ memberId, total }))
@@ -435,7 +482,7 @@ export const useExpenseStore = defineStore('expense', () => {
     monthTotal.value = 0
     yearTotal.value = 0
     filter.value = {
-      range: '30d',
+      range: 'today',
       categoryIds: [],
       memberIds: [],
       minAmount: undefined,
@@ -455,6 +502,7 @@ export const useExpenseStore = defineStore('expense', () => {
     yearTotal,
     // v1.1 成员统计
     aggregateByCreator,
+    aggregateByPayer,
     aggregateByMember,
     aggregateByAccount,
     load,
