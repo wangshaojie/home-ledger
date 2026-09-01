@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { errText } from '@/lib/notify'
+import { rangeStartIso, type RangeKey } from '@/lib/dateRange'
 import { useAuthStore } from './auth'
 
 export interface Expense {
@@ -29,7 +30,7 @@ export interface Expense {
 }
 
 export interface FilterState {
-  range: 'all' | 'today' | 'yesterday' | 'week' | 'month' | '30d'
+  range: RangeKey
   categoryIds: string[]
   memberIds: string[]
   minAmount?: number
@@ -40,7 +41,7 @@ export const useExpenseStore = defineStore('expense', () => {
   const items = ref<Expense[]>([])
   const loading = ref(false)
   const filter = ref<FilterState>({
-    range: 'all',
+    range: '30d',
     categoryIds: [],
     memberIds: [],
     minAmount: undefined,
@@ -76,24 +77,54 @@ export const useExpenseStore = defineStore('expense', () => {
     filteredExpenses.value.reduce((s, e) => s + Number(e.amount), 0)
   )
 
-  const todayTotal = computed(() => {
-    const start = new Date(); start.setHours(0, 0, 0, 0)
-    return items.value
-      .filter((e) => new Date(e.spent_at) >= start)
-      .reduce((s, e) => s + Number(e.amount), 0)
-  })
-  const monthTotal = computed(() => {
-    const start = new Date(); start.setDate(1); start.setHours(0, 0, 0, 0)
-    return items.value
-      .filter((e) => new Date(e.spent_at) >= start)
-      .reduce((s, e) => s + Number(e.amount), 0)
-  })
-  const yearTotal = computed(() => {
-    const start = new Date(); start.setMonth(0, 1); start.setHours(0, 0, 0, 0)
-    return items.value
-      .filter((e) => new Date(e.spent_at) >= start)
-      .reduce((s, e) => s + Number(e.amount), 0)
-  })
+  const todayTotal = ref(0)
+  const monthTotal = ref(0)
+  const yearTotal = ref(0)
+
+  // 竞态保护：load / loadTotals 各持一个单调递增序号，
+  // 请求返回时若序号已过期则丢弃结果，避免慢的旧请求覆盖新结果
+  let loadSeq = 0
+  let totalsSeq = 0
+
+  /**
+   * 固定口径统计（今日/本月/本年）走数据库 RPC 聚合，不再依赖 items。
+   * items 现在只含当前筛选范围的数据，无法再支撑年/月口径；
+   * 且该项目的 PostgREST 不支持 select=sum(amount) 聚合语法（PGRST200），
+   * 所以用 get_family_totals RPC 在数据库端求和。
+   */
+  async function loadTotals() {
+    const seq = ++totalsSeq
+    const auth = useAuthStore()
+    const fid = auth.profile?.family_id
+    if (!fid) {
+      todayTotal.value = 0
+      monthTotal.value = 0
+      yearTotal.value = 0
+      return
+    }
+    const now = new Date()
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const startOfYear = new Date(now.getFullYear(), 0, 1).toISOString()
+    try {
+      const { data, error } = await supabase.rpc('get_family_totals', {
+        p_today: startOfToday,
+        p_month: startOfMonth,
+        p_year: startOfYear
+      })
+      if (seq !== totalsSeq) return // 过期请求丢弃
+      if (error) {
+        console.error('get_family_totals error', error)
+        return
+      }
+      const d = data as { today?: number; month?: number; year?: number } | null
+      todayTotal.value = Number(d?.today || 0)
+      monthTotal.value = Number(d?.month || 0)
+      yearTotal.value = Number(d?.year || 0)
+    } catch (e) {
+      console.error('loadTotals error', e)
+    }
+  }
 
   /**
    * v1.1 成员支出统计 - 按 creator 维度聚合
@@ -178,7 +209,30 @@ export const useExpenseStore = defineStore('expense', () => {
       .sort((a, b) => b.total - a.total)
   }
 
+  /** 按支付账户聚合累计支出（全量、不受筛选时间范围影响）——账户管理页使用 */
+  async function aggregateByAccount(): Promise<Map<string, number>> {
+    const auth = useAuthStore()
+    const fid = auth.profile?.family_id
+    const map = new Map<string, number>()
+    if (!fid) return map
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('account_id, amount')
+      .eq('family_id', fid)
+      .is('deleted_at', null)
+    if (error) {
+      console.error('aggregateByAccount error', error)
+      return map
+    }
+    for (const row of data || []) {
+      const key = row.account_id || ''
+      map.set(key, (map.get(key) || 0) + Number(row.amount))
+    }
+    return map
+  }
+
   async function load() {
+    const seq = ++loadSeq
     const auth = useAuthStore()
     const fid = auth.profile?.family_id
     if (!fid) {
@@ -186,7 +240,9 @@ export const useExpenseStore = defineStore('expense', () => {
       return
     }
     loading.value = true
-    const { data, error } = await supabase
+
+    // 筛选下沉到 SQL：只拉当前 filter 范围内的数据（不再全量 + limit(2000) 隐性截断）
+    let q = supabase
       .from('expenses')
       .select(`
         *,
@@ -197,14 +253,29 @@ export const useExpenseStore = defineStore('expense', () => {
       `)
       .eq('family_id', fid)
       .is('deleted_at', null)
-      .order('spent_at', { ascending: false })
-      .limit(2000)
-    loading.value = false
-    if (error) {
-      console.error('load expenses error', error)
-      return
+    const f = filter.value
+    const since = rangeStartIso(f.range)
+    if (since) q = q.gte('spent_at', since)
+    if (f.range === 'yesterday') q = q.lt('spent_at', rangeStartIso('today')!)
+    if (f.categoryIds.length) q = q.in('category_id', f.categoryIds)
+    if (f.memberIds.length) q = q.in('member_id', f.memberIds)
+    if (f.minAmount != null) q = q.gte('amount', f.minAmount)
+    if (f.maxAmount != null) q = q.lte('amount', f.maxAmount)
+
+    try {
+      const { data, error } = await q.order('spent_at', { ascending: false })
+      if (seq !== loadSeq) return // 过期请求丢弃（防抖只合并连续点击，防不了乱序）
+      if (error) {
+        console.error('load expenses error', error)
+        return
+      }
+      items.value = (data || []) as Expense[]
+    } catch (e) {
+      console.error('load expenses error', e)
+    } finally {
+      if (seq === loadSeq) loading.value = false
     }
-    items.value = (data || []) as Expense[]
+    if (seq === loadSeq) await loadTotals()
   }
 
   async function add(payload: {
@@ -243,6 +314,7 @@ export const useExpenseStore = defineStore('expense', () => {
       .single()
     if (error) return { ok: false, message: errText(error, '记账失败') }
     items.value.unshift(data as Expense)
+    void loadTotals()
     return { ok: true, message: '记账成功' }
   }
 
@@ -312,6 +384,7 @@ export const useExpenseStore = defineStore('expense', () => {
       `)
     if (error) return { ok: false, message: errText(error, '记账失败') }
     items.value = [...(data as Expense[]), ...items.value]
+    void loadTotals()
     return { ok: true, message: '记账成功' }
   }
 
@@ -328,13 +401,32 @@ export const useExpenseStore = defineStore('expense', () => {
     items.value = groupId
       ? items.value.filter((e) => e.group_id !== groupId)
       : items.value.filter((e) => e.id !== id)
+    void loadTotals()
     return { ok: true, message: groupId ? '已删除整组' : '已删除' }
   }
 
+  // 筛选条件变化 → 自动按 SQL 重新拉取（防抖：连续勾选只打一次请求）
+  let filterTimer: ReturnType<typeof setTimeout> | null = null
+  watch(
+    filter,
+    () => {
+      if (filterTimer) clearTimeout(filterTimer)
+      filterTimer = setTimeout(() => {
+        void load()
+      }, 250)
+    },
+    { deep: true }
+  )
+
   function reset() {
+    loadSeq++ // 让所有挂起的 load/loadTotals 请求失效
+    totalsSeq++
     items.value = []
+    todayTotal.value = 0
+    monthTotal.value = 0
+    yearTotal.value = 0
     filter.value = {
-      range: 'all',
+      range: '30d',
       categoryIds: [],
       memberIds: [],
       minAmount: undefined,
@@ -354,6 +446,7 @@ export const useExpenseStore = defineStore('expense', () => {
     // v1.1 成员统计
     aggregateByCreator,
     aggregateByMember,
+    aggregateByAccount,
     load,
     add,
     addShared,

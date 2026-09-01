@@ -21,6 +21,7 @@ import { provide } from 'vue'
 import { useExpenseStore } from '@/stores/expense'
 import { useFamilyStore } from '@/stores/family'
 import { displayNameOf } from '@/lib/displayName'
+import { rangeStartIso } from '@/lib/dateRange'
 
 use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, TitleComponent, LegendComponent])
 provide(THEME_KEY, 'light')
@@ -34,29 +35,6 @@ const range = computed({
   get: () => expenseStore.filter.range,
   set: (v) => (expenseStore.filter.range = v)
 })
-const startDate = computed(() => {
-  const r = expenseStore.filter.range
-  const now = new Date()
-  if (r === 'today') {
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    return start.toISOString()
-  }
-  if (r === 'yesterday') {
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    return new Date(start.getTime() - 86400000).toISOString()
-  }
-  if (r === 'week') {
-    return new Date(now.getTime() - 7 * 86400000).toISOString()
-  }
-  if (r === 'month') {
-    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  }
-  if (r === '30d') {
-    return new Date(now.getTime() - 30 * 86400000).toISOString()
-  }
-  // 'all' 或其它:不限时间
-  return null
-})
 
 // 聚合数据
 interface MemberAgg { memberId: string; total: number; name: string }
@@ -64,7 +42,11 @@ interface MemberAgg { memberId: string; total: number; name: string }
 const byCreator = ref<MemberAgg[]>([])
 const byMember = ref<MemberAgg[]>([])
 
+// 竞态保护：快速切换筛选时丢弃过期聚合结果
+let statsSeq = 0
+
 async function loadStats() {
+  const seq = ++statsSeq
   // 兜底：确保 familyStore.members 已加载（App.vue onMounted 后也再拉一次）
   if (familyStore.members.length === 0) {
     await familyStore.load()
@@ -77,10 +59,12 @@ async function loadStats() {
     minAmount: f.minAmount,
     maxAmount: f.maxAmount
   }
+  const since = rangeStartIso(f.range)
   const [creator, member] = await Promise.all([
-    expenseStore.aggregateByCreator(startDate.value, extraFilter),
-    expenseStore.aggregateByMember(startDate.value, extraFilter)
+    expenseStore.aggregateByCreator(since, extraFilter),
+    expenseStore.aggregateByMember(since, extraFilter)
   ])
+  if (seq !== statsSeq) return // 过期请求丢弃
   // creator 维度: aggregateByCreator 返回的 memberId 实际是 profile.id (expenses.creator_id FK 到 profiles)
   // 需要翻译成 family_member.id 才能用 familyStore.members 找名字
   // family_member.linked_profile_id = profile.id
@@ -104,17 +88,23 @@ async function loadStats() {
 }
 
 onMounted(loadStats)
-// 监听:时间范围、成员变化、列表筛选(分类/成员/金额)任意变化都重新聚合
+// 监听:时间范围、成员变化、列表筛选(分类/成员/金额)、账单增删改（items 引用变化）任意变化都重新聚合。
+// 防抖合并连续变化，避免一次切筛选打出多个聚合请求；与 store 的 load 防抖节奏一致。
+let statsTimer: ReturnType<typeof setTimeout> | null = null
 watch(
   [
-    range,
+    () => expenseStore.filter.range,
     () => familyStore.members.length,
     () => expenseStore.filter.categoryIds.slice(),
     () => expenseStore.filter.memberIds.slice(),
     () => expenseStore.filter.minAmount,
-    () => expenseStore.filter.maxAmount
+    () => expenseStore.filter.maxAmount,
+    () => expenseStore.items
   ],
-  loadStats
+  () => {
+    if (statsTimer) clearTimeout(statsTimer)
+    statsTimer = setTimeout(() => void loadStats(), 250)
+  }
 )
 
 // 决定要不要退化为单图

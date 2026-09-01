@@ -9,8 +9,8 @@ const accountStore = usePaymentAccountStore()
 const expenseStore = useExpenseStore()
 
 onMounted(async () => {
-  // 确保账单数据已加载，用于展示每个账户的累计支出
-  await expenseStore.load()
+  // 全量聚合各账户累计支出（不受首页时间筛选影响）
+  accountSpentMap.value = await expenseStore.aggregateByAccount()
 })
 
 /** 常用支付图标快捷选择 */
@@ -22,12 +22,10 @@ function fmtMoney(n: number) {
   return '¥' + v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-/** 该账户累计支出（基于已加载账单） */
+/** 该账户累计支出（全量 SQL 聚合结果，与首页时间筛选无关） */
+const accountSpentMap = ref(new Map<string, number>())
 function accountSpent(id: string) {
-  return expenseStore.items.reduce(
-    (s, e) => (e.account_id === id ? s + Number(e.amount) : s),
-    0
-  )
+  return accountSpentMap.value.get(id) || 0
 }
 
 const showAddAccount = ref(false)

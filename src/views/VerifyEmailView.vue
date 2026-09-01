@@ -156,7 +156,7 @@ function back() {
         </el-button>
 
         <div class="bottom-tip">
-          <el-link type="primary" :underline="false" @click="back">返回上一步</el-link>
+          <el-link type="primary" :underline="'never'" @click="back">返回上一步</el-link>
         </div>
       </el-form>
     </div>
@@ -234,7 +234,8 @@ function back() {
 }
 .submit-btn.is-disabled {
   background-image: none;
-  background-color: var(--el-disabled-bg-color);
+  background-color: var(--el-color-primary-light-7);
+  color: var(--el-color-primary);
 }
 .bottom-tip {
   text-align: center;

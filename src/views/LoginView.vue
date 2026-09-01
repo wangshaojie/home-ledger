@@ -88,7 +88,7 @@ function goForgot() {
             @keyup.enter="submit"
           />
           <div class="hint">
-            <el-link type="primary" :underline="false" @click="goForgot">忘记密码？</el-link>
+            <el-link type="primary" :underline="'never'" @click="goForgot">忘记密码？</el-link>
           </div>
         </el-form-item>
 
@@ -109,7 +109,7 @@ function goForgot() {
 
         <div class="bottom-tip">
           没账号？
-          <el-link type="primary" :underline="false" @click="goRegister">立即注册</el-link>
+          <el-link type="primary" :underline="'never'" @click="goRegister">立即注册</el-link>
         </div>
       </el-form>
 
@@ -184,7 +184,8 @@ function goForgot() {
 }
 .submit-btn.is-disabled {
   background-image: none;
-  background-color: var(--el-disabled-bg-color);
+  background-color: var(--el-color-primary-light-7);
+  color: var(--el-color-primary);
 }
 .bottom-tip {
   text-align: center;

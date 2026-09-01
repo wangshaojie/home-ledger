@@ -134,7 +134,7 @@ async function submit() {
 
         <div class="bottom-tip">
           已有账号？
-          <el-link type="primary" :underline="false" @click="router.push({ name: 'login' })">
+          <el-link type="primary" :underline="'never'" @click="router.push({ name: 'login' })">
             返回登录
           </el-link>
         </div>
@@ -229,7 +229,8 @@ async function submit() {
 }
 .submit-btn.is-disabled {
   background-image: none;
-  background-color: var(--el-disabled-bg-color);
+  background-color: var(--el-color-primary-light-7);
+  color: var(--el-color-primary);
 }
 .bottom-tip {
   text-align: center;
