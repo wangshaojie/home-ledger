@@ -9,12 +9,19 @@ import { useAuthStore } from '@/stores/auth'
 import { notify } from '@/lib/notify'
 import { displayNameOf } from '@/lib/displayName'
 import MemberStatsPanel from '@/components/MemberStatsPanel.vue'
+import { useAnimatedNumber } from '@/lib/useAnimatedNumber'
 import {
   getRecentCategoryIds,
   markCategoryUsed
 } from '@/lib/recentCategories'
 
 const store = useExpenseStore()
+
+// 统计卡片数字滚动过渡：切换筛选/记账时数值平滑变化，避免生硬跳变
+const todayTotalDisplay = useAnimatedNumber(() => store.todayTotal)
+const monthTotalDisplay = useAnimatedNumber(() => store.monthTotal)
+const yearTotalDisplay = useAnimatedNumber(() => store.yearTotal)
+const totalAmountDisplay = useAnimatedNumber(() => store.totalAmount)
 const categoryStore = useCategoryStore()
 const accountStore = usePaymentAccountStore()
 const familyStore = useFamilyStore()
@@ -443,28 +450,28 @@ function fmtMoney(n: number) {
         <div class="stat-icon"><el-icon><Sunny /></el-icon></div>
         <div class="stat-body">
           <div class="stat-label">今日支出</div>
-          <div class="stat-value">{{ fmtMoney(store.todayTotal) }}</div>
+          <div class="stat-value">{{ fmtMoney(todayTotalDisplay) }}</div>
         </div>
       </div>
       <div class="stat-card tone-blue">
         <div class="stat-icon"><el-icon><Calendar /></el-icon></div>
         <div class="stat-body">
           <div class="stat-label">本月支出</div>
-          <div class="stat-value">{{ fmtMoney(store.monthTotal) }}</div>
+          <div class="stat-value">{{ fmtMoney(monthTotalDisplay) }}</div>
         </div>
       </div>
       <div class="stat-card tone-green">
         <div class="stat-icon"><el-icon><TrendCharts /></el-icon></div>
         <div class="stat-body">
           <div class="stat-label">本年支出</div>
-          <div class="stat-value">{{ fmtMoney(store.yearTotal) }}</div>
+          <div class="stat-value">{{ fmtMoney(yearTotalDisplay) }}</div>
         </div>
       </div>
       <div class="stat-card highlight">
         <div class="stat-icon"><el-icon><Wallet /></el-icon></div>
         <div class="stat-body">
           <div class="stat-label">筛选区间合计</div>
-          <div class="stat-value">{{ fmtMoney(store.totalAmount) }}</div>
+          <div class="stat-value">{{ fmtMoney(totalAmountDisplay) }}</div>
         </div>
       </div>
     </div>
@@ -514,7 +521,8 @@ function fmtMoney(n: number) {
         <span style="text-align: right">金额</span>
         <span style="text-align: right">操作</span>
       </div>
-      <div v-for="e in store.filteredExpenses" :key="e.id" class="list-row">
+      <TransitionGroup name="row" tag="div" class="list-body">
+        <div v-for="e in store.filteredExpenses" :key="e.id" class="list-row">
         <span class="cell-time">{{ formatDate(e.spent_at) }}</span>
         <span class="cell-member">
           <span class="member-main">
@@ -560,7 +568,8 @@ function fmtMoney(n: number) {
             <el-icon><Delete /></el-icon>
           </el-button>
         </span>
-      </div>
+        </div>
+      </TransitionGroup>
       <div v-if="store.filteredExpenses.length === 0" class="empty">
         <div class="empty-icon"><el-icon><Wallet /></el-icon></div>
         <div class="empty-title">暂无账单</div>
@@ -997,6 +1006,7 @@ function fmtMoney(n: number) {
 }
 
 .list-card {
+  position: relative; /* 列表行离开动画（absolute）的定位基准 */
   background: #fff;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -1004,6 +1014,26 @@ function fmtMoney(n: number) {
   box-shadow: var(--shadow-card);
   overflow: hidden;
 }
+
+/* 列表行增删/重排过渡动画（TransitionGroup） */
+.row-enter-active,
+.row-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.row-enter-from,
+.row-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+.row-leave-active {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+.row-move {
+  transition: transform 0.22s ease;
+}
+
 .list-head,
 .list-row {
   display: grid;

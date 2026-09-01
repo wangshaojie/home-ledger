@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, shell, ipcMain } from 'electron'
 import path from 'node:path'
 import { loadMainProcessEnv } from './loadEnv'
 
@@ -187,23 +187,40 @@ ipcMain.handle(
 
 // ========================================
 // 自动更新（electron-updater + GitHub Releases）
+// 流程改为"事件推送到渲染进程"：更新弹窗/进度条都在应用内 UI 展示，
+// 替代原来的主进程原生 dialog（点击更新后无任何反馈，体验差）。
 // ========================================
+let appUpdater: import('electron-updater').AppUpdater | null = null
 let updateCheckInterval: NodeJS.Timeout | null = null
 let isDownloading = false
 
-async function setupAutoUpdater() {
-  // ⚠️ v2026-08-25: electron-updater 是 CJS 包, Vite 编译后的 `await import` 不会自动
-  // interop 解包, named import 拿到 undefined. 改用 `rawMod.default ?? rawMod` 兜底
-  // 用 unknown 过渡避免类型污染, 否则 AppUpdater 事件回调参数会退化成 any 触发 TS7006
-  // 参考: https://github.com/electron-userland/electron-builder/issues/8115
+/**
+ * 懒加载 electron-updater 并缓存单例。
+ * ⚠️ electron-updater 是 CJS 包, Vite 编译后的 `await import` 不会自动 interop
+ * 解包, named import 拿到 undefined. 改用 `rawMod.default ?? rawMod` 兜底
+ * 参考: https://github.com/electron-userland/electron-builder/issues/8115
+ */
+async function getUpdater(): Promise<import('electron-updater').AppUpdater> {
+  if (appUpdater) return appUpdater
   const rawMod: unknown = await import('electron-updater')
   const mod = (rawMod as { default?: typeof import('electron-updater') }).default
     ?? (rawMod as typeof import('electron-updater'))
-  const { autoUpdater } = mod
+  appUpdater = mod.autoUpdater
+  return appUpdater
+}
+
+/** 把更新事件推给渲染进程（窗口未就绪时丢弃，下次检查会再次触发） */
+function sendUpdateEvent(payload: unknown) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('app:update-event', payload)
+  }
+}
+
+async function setupAutoUpdater() {
+  const autoUpdater = await getUpdater()
 
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
-  // 中文日志
   autoUpdater.logger = null // 用默认 console 即可；要更详细可换 electron-log
 
   // 1) 启动后 3 秒首次检查
@@ -213,7 +230,7 @@ async function setupAutoUpdater() {
     })
   }, 3000)
 
-  // 2) 每 4 小时轮询一次
+  // 2) 每 4 小时轮询一次（下载期间跳过）
   updateCheckInterval = setInterval(
     () => {
       if (!isDownloading) {
@@ -225,74 +242,54 @@ async function setupAutoUpdater() {
     4 * 60 * 60 * 1000
   )
 
-  // 3) 发现新版本 → 弹窗让用户决定
-  autoUpdater.on('update-available', async (info) => {
-    const { response } = await dialog.showMessageBox({
-      type: 'info',
-      title: '发现新版本',
-      message: `发现新版本 v${info.version}`,
-      detail: '是否立即下载新版本？\n下载完成后会再次询问是否立即重启应用。',
-      buttons: ['立即下载', '稍后再说'],
-      defaultId: 0,
-      cancelId: 1,
-      noLink: true
+  // 3) 发现新版本 → 推给渲染进程弹窗，由用户决定是否下载
+  autoUpdater.on('update-available', (info) => {
+    sendUpdateEvent({
+      type: 'update-available',
+      version: (info as { version?: string })?.version || ''
     })
-    if (response === 0) {
-      isDownloading = true
-      autoUpdater.downloadUpdate().catch((err) => {
-        isDownloading = false
-        console.error('[autoUpdater] download error:', err)
-        dialog.showErrorBox('下载失败', `新版本下载失败：${err?.message || err}\n请稍后重试或前往官网手动下载。`)
-      })
-    }
   })
 
-  // 4) 下载进度（写到主进程 console，不打扰用户）
+  // 4) 下载进度 → 推给渲染进程展示进度条
   autoUpdater.on('download-progress', (progress) => {
-    console.log(
-      `[autoUpdater] 下载中 ${(progress.percent).toFixed(1)}% (${(progress.transferred / 1024 / 1024).toFixed(1)}/${(progress.total / 1024 / 1024).toFixed(1)} MB)`
-    )
-  })
-
-  // 5) 下载完成 → 弹窗询问是否立即重启
-  autoUpdater.on('update-downloaded', async (info) => {
-    isDownloading = false
-    const { response } = await dialog.showMessageBox({
-      type: 'info',
-      title: '更新已就绪',
-      message: `v${info.version} 已下载完成`,
-      detail: '是否立即重启应用以完成更新？\n选择"稍后"将在下次启动时自动安装。',
-      buttons: ['立即重启', '稍后'],
-      defaultId: 0,
-      cancelId: 1,
-      noLink: true
+    sendUpdateEvent({
+      type: 'download-progress',
+      percent: Number((progress as { percent?: number })?.percent || 0),
+      transferred: Number((progress as { transferred?: number })?.transferred || 0),
+      total: Number((progress as { total?: number })?.total || 0),
+      bytesPerSecond: Number((progress as { bytesPerSecond?: number })?.bytesPerSecond || 0)
     })
-    if (response === 0) {
-      // isSilent=false 让 NSIS 安装器显示安装界面
-      autoUpdater.quitAndInstall(false, false)
-    }
   })
 
-  // 6) 没有更新 / 错误
+  // 5) 下载完成 → 推给渲染进程询问是否立即重启
+  autoUpdater.on('update-downloaded', (info) => {
+    isDownloading = false
+    sendUpdateEvent({
+      type: 'update-downloaded',
+      version: (info as { version?: string })?.version || ''
+    })
+  })
+
+  // 6) 无更新 / 错误
   autoUpdater.on('update-not-available', () => {
-    console.log('[autoUpdater] 已是最新版本')
+    sendUpdateEvent({ type: 'update-not-available' })
   })
   autoUpdater.on('error', (err) => {
-    console.error('[autoUpdater] error:', err)
+    isDownloading = false
+    sendUpdateEvent({
+      type: 'update-error',
+      message: (err as Error)?.message || String(err)
+    })
   })
 }
 
-// 渲染进程手动触发"检查更新"
+// 渲染进程手动触发"检查更新"（设置页用）
 ipcMain.handle('app:check-for-updates', async () => {
   if (VITE_DEV_SERVER_URL) {
     return { ok: false, message: '开发模式不检查更新' }
   }
   try {
-    // ⚠️ CJS interop: 拿 default 兜底（参考 setupAutoUpdater 同款修法）
-    const rawMod: unknown = await import('electron-updater')
-    const mod = (rawMod as { default?: typeof import('electron-updater') }).default
-      ?? (rawMod as typeof import('electron-updater'))
-    const { autoUpdater } = mod
+    const autoUpdater = await getUpdater()
     const result = await autoUpdater.checkForUpdates()
     return {
       ok: true,
@@ -303,6 +300,31 @@ ipcMain.handle('app:check-for-updates', async () => {
   } catch (e: any) {
     return { ok: false, message: e?.message || '检查更新失败' }
   }
+})
+
+// 渲染进程"立即下载"（弹窗按钮触发；下载进度由 download-progress 事件驱动 UI）
+ipcMain.handle('app:download-update', async () => {
+  if (VITE_DEV_SERVER_URL) return { ok: false, message: '开发模式不支持下载更新' }
+  if (isDownloading) return { ok: true, message: '已在下载中' }
+  try {
+    isDownloading = true
+    const autoUpdater = await getUpdater()
+    await autoUpdater.downloadUpdate()
+    return { ok: true }
+  } catch (e: any) {
+    isDownloading = false
+    sendUpdateEvent({ type: 'update-error', message: e?.message || '下载失败' })
+    return { ok: false, message: e?.message || '下载失败' }
+  }
+})
+
+// 渲染进程"立即重启并安装"
+ipcMain.handle('app:quit-and-install', async () => {
+  if (VITE_DEV_SERVER_URL) return { ok: false, message: '开发模式不支持' }
+  const autoUpdater = await getUpdater()
+  // isSilent=false 让 NSIS 安装器显示安装界面
+  autoUpdater.quitAndInstall(false, false)
+  return { ok: true }
 })
 
 app.on('will-quit', () => {

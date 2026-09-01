@@ -39,6 +39,10 @@ export interface FilterState {
 
 export const useExpenseStore = defineStore('expense', () => {
   const items = ref<Expense[]>([])
+  // 数据版本号：load 成功、记账/分摊/删除等任何 items 内容变化时自增。
+  // 供依赖 items 内容的组件（如成员统计面板）监听，避免只监听数组引用
+  // 漏掉 unshift 这类原地修改（引用不变）。
+  const revision = ref(0)
   const loading = ref(false)
   const filter = ref<FilterState>({
     range: '30d',
@@ -270,6 +274,7 @@ export const useExpenseStore = defineStore('expense', () => {
         return
       }
       items.value = (data || []) as Expense[]
+      revision.value++
     } catch (e) {
       console.error('load expenses error', e)
     } finally {
@@ -314,6 +319,7 @@ export const useExpenseStore = defineStore('expense', () => {
       .single()
     if (error) return { ok: false, message: errText(error, '记账失败') }
     items.value.unshift(data as Expense)
+    revision.value++
     void loadTotals()
     return { ok: true, message: '记账成功' }
   }
@@ -384,6 +390,7 @@ export const useExpenseStore = defineStore('expense', () => {
       `)
     if (error) return { ok: false, message: errText(error, '记账失败') }
     items.value = [...(data as Expense[]), ...items.value]
+    revision.value++
     void loadTotals()
     return { ok: true, message: '记账成功' }
   }
@@ -401,6 +408,7 @@ export const useExpenseStore = defineStore('expense', () => {
     items.value = groupId
       ? items.value.filter((e) => e.group_id !== groupId)
       : items.value.filter((e) => e.id !== id)
+    revision.value++
     void loadTotals()
     return { ok: true, message: groupId ? '已删除整组' : '已删除' }
   }
@@ -422,6 +430,7 @@ export const useExpenseStore = defineStore('expense', () => {
     loadSeq++ // 让所有挂起的 load/loadTotals 请求失效
     totalsSeq++
     items.value = []
+    revision.value++
     todayTotal.value = 0
     monthTotal.value = 0
     yearTotal.value = 0
@@ -436,6 +445,7 @@ export const useExpenseStore = defineStore('expense', () => {
 
   return {
     items,
+    revision,
     loading,
     filter,
     filteredExpenses,

@@ -7,6 +7,7 @@ import { useCategoryStore } from '@/stores/category'
 import { usePaymentAccountStore } from '@/stores/paymentAccount'
 import { useExpenseStore } from '@/stores/expense'
 import { resetBusinessState } from '@/lib/resetBusinessState'
+import UpdateDialog from '@/components/UpdateDialog.vue'
 
 const auth = useAuthStore()
 const family = useFamilyStore()
@@ -72,6 +73,7 @@ watch(
 
 <template>
   <RouterView />
+  <UpdateDialog />
 </template>
 
 <style>

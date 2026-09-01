@@ -2,11 +2,11 @@
   v1.1 成员支出统计
   - 双维度：creator（谁付的）vs member（钱算谁的）
   - 单成员家庭：退化为一个总支出图
-  - 月/全部 tab 切换
+  - 时间范围跟随首页顶部筛选（store.filter.range）
   - 点击柱子 → 跳列表并预填 memberIds
 -->
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { BarChart } from 'echarts/charts'
@@ -22,19 +22,13 @@ import { useExpenseStore } from '@/stores/expense'
 import { useFamilyStore } from '@/stores/family'
 import { displayNameOf } from '@/lib/displayName'
 import { rangeStartIso } from '@/lib/dateRange'
+import { useAnimatedNumber } from '@/lib/useAnimatedNumber'
 
 use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, TitleComponent, LegendComponent])
 provide(THEME_KEY, 'light')
 
 const expenseStore = useExpenseStore()
 const familyStore = useFamilyStore()
-
-// 跟 HomeView 列表共用同一个时间筛选（store.filter.range）
-// 这样用户在顶部切"今日/本周/..."时,柱状图也同步
-const range = computed({
-  get: () => expenseStore.filter.range,
-  set: (v) => (expenseStore.filter.range = v)
-})
 
 // 聚合数据
 interface MemberAgg { memberId: string; total: number; name: string }
@@ -88,19 +82,13 @@ async function loadStats() {
 }
 
 onMounted(loadStats)
-// 监听:时间范围、成员变化、列表筛选(分类/成员/金额)、账单增删改（items 引用变化）任意变化都重新聚合。
-// 防抖合并连续变化，避免一次切筛选打出多个聚合请求；与 store 的 load 防抖节奏一致。
+// 监听 expenseStore.revision（数据版本号）：任何筛选变化都会触发 store 的 load()
+// 成功后 revision++，记账/分摊/删除也会 revision++，这里随之聚合一次即可；
+// 不直接监听 filter 明细 + items，否则一次切换会触发两次聚合请求。
+// 另监听家庭成员数量，新增成员后图表出现新柱子。
 let statsTimer: ReturnType<typeof setTimeout> | null = null
 watch(
-  [
-    () => expenseStore.filter.range,
-    () => familyStore.members.length,
-    () => expenseStore.filter.categoryIds.slice(),
-    () => expenseStore.filter.memberIds.slice(),
-    () => expenseStore.filter.minAmount,
-    () => expenseStore.filter.maxAmount,
-    () => expenseStore.items
-  ],
+  [() => expenseStore.revision, () => familyStore.members.length],
   () => {
     if (statsTimer) clearTimeout(statsTimer)
     statsTimer = setTimeout(() => void loadStats(), 250)
@@ -118,6 +106,11 @@ const memberTotal = computed(() => byMember.value.reduce((s, x) => s + x.total, 
 // 简化：单成员时直接用 store.totalAmount 的逻辑，但需要重算。
 // 实用做法：复用 byMember 的 total
 const singleTotal = computed(() => memberTotal.value)
+
+// 图表标题金额数字滚动过渡
+const creatorTotalDisplay = useAnimatedNumber(() => creatorTotal.value)
+const memberTotalDisplay = useAnimatedNumber(() => memberTotal.value)
+const singleTotalDisplay = useAnimatedNumber(() => singleTotal.value)
 
 // 点击柱子 → 跳列表预填 memberIds 并滚动
 function onBarClick(memberId: string) {
@@ -183,6 +176,13 @@ function buildOption(rows: MemberAgg[], total: number, title: string) {
   // 按金额降序
   const sorted = [...rows].sort((a, b) => b.total - a.total)
   return {
+    // 数据更新动画：切换筛选/记账时柱状图平滑过渡
+    animation: true,
+    animationDuration: 450,
+    animationEasing: 'cubicOut',
+    animationDurationUpdate: 450,
+    animationEasingUpdate: 'cubicOut',
+    animationThreshold: 2000,
     // right 需给右侧金额标签留足空间（series label 不参与 containLabel 计算）
     grid: { left: 40, right: 90, top: 30, bottom: 30, containLabel: true },
     tooltip: {
@@ -235,13 +235,6 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
   <div class="member-stats-panel">
     <div class="panel-head">
       <h3>成员支出统计</h3>
-      <el-radio-group v-model="range" size="small">
-        <el-radio-button value="all">全部</el-radio-button>
-        <el-radio-button value="today">今日</el-radio-button>
-        <el-radio-button value="week">本周</el-radio-button>
-        <el-radio-button value="month">本月</el-radio-button>
-        <el-radio-button value="30d">近 30 天</el-radio-button>
-      </el-radio-group>
     </div>
 
     <div v-if="onlyOneMember" class="single-chart">
@@ -255,7 +248,7 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
       <div v-else class="empty-tip">本月还没有支出数据</div>
       <div class="single-total">
         <div class="label">总支出</div>
-        <div class="value">¥{{ singleTotal.toFixed(2) }}</div>
+        <div class="value">¥{{ singleTotalDisplay.toFixed(2) }}</div>
       </div>
     </div>
 
@@ -263,7 +256,7 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
       <div class="chart-cell">
         <div class="chart-title">
           <span>按付款人（我付的）</span>
-          <span class="total">¥{{ creatorTotal.toFixed(2) }}</span>
+          <span class="total">¥{{ creatorTotalDisplay.toFixed(2) }}</span>
         </div>
         <v-chart
           v-if="byCreator.length > 0"
@@ -278,7 +271,7 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
       <div class="chart-cell">
         <div class="chart-title">
           <span>按消费成员（钱算谁头上）</span>
-          <span class="total">¥{{ memberTotal.toFixed(2) }}</span>
+          <span class="total">¥{{ memberTotalDisplay.toFixed(2) }}</span>
         </div>
         <v-chart
           v-if="byMember.length > 0"
@@ -316,37 +309,6 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
   font-size: 16px;
   color: var(--color-text);
   font-weight: 700;
-}
-/* 面板内时间胶囊与首页筛选风格统一：胶囊间留间距、可换行 */
-.panel-head :deep(.el-radio-group) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0;
-}
-.panel-head :deep(.el-radio-button) {
-  margin: 0;
-  padding: 0;
-  flex-shrink: 0;
-}
-.panel-head :deep(.el-radio-button + .el-radio-button) {
-  margin-left: 0;
-}
-.panel-head :deep(.el-radio-button__inner) {
-  border: none;
-  background: transparent;
-  border-radius: 8px;
-  padding: 6px 14px;
-  box-shadow: none;
-  color: var(--color-text-soft);
-  font-weight: 500;
-  transition: background 0.15s, color 0.15s;
-}
-.panel-head :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  font-weight: 600;
-  box-shadow: none;
 }
 .dual-chart {
   display: grid;
