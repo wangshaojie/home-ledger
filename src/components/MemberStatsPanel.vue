@@ -41,10 +41,9 @@ let statsSeq = 0
 
 async function loadStats() {
   const seq = ++statsSeq
-  // 兜底：确保 familyStore.members 已加载（App.vue onMounted 后也再拉一次）
-  if (familyStore.members.length === 0) {
-    await familyStore.load()
-  }
+  // familyStore.members 由 App.vue bootstrap 拉；这里只读不重拉
+  //（之前 if (members.length === 0) await familyStore.load() 会在首次启动和
+  //  App.vue bootstrap 同步到达时重复打 family_members 接口）
   // 跟 HomeView 列表筛选保持一致:把 categoryIds/memberIds/amount 一起传给 aggregate
   const f = expenseStore.filter
   const extraFilter = {
@@ -81,10 +80,11 @@ async function loadStats() {
   byMember.value = member.map((m) => ({ ...m, name: resolveName(m.memberId, m.memberId) }))
 }
 
-onMounted(loadStats)
 // 监听 expenseStore.revision（数据版本号）：任何筛选变化都会触发 store 的 load()
 // 成功后 revision++，记账/分摊/删除也会 revision++，这里随之聚合一次即可；
 // 不直接监听 filter 明细 + items，否则一次切换会触发两次聚合请求。
+// 首次启动：expense.load() 完成 revision 0→1 时 watch 也会触发 loadStats，
+// 所以不需要 onMounted(loadStats) —— 之前两者同时跑会双触发聚合请求。
 // 另监听家庭成员数量，新增成员后图表出现新柱子。
 let statsTimer: ReturnType<typeof setTimeout> | null = null
 watch(

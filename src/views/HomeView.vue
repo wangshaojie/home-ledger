@@ -154,8 +154,11 @@ const currentFamilyMember = computed(() => {
 const currentFamilyMemberId = computed(() => currentFamilyMember.value?.id || '')
 
 onMounted(async () => {
-  // 每次进入首页都重新拉一次成员列表,保证最新（SettingsView 加成员后能立即反映）
-  await familyStore.load()
+  // 家庭成员由 App.vue bootstrap 统一拉，HomeView 不再重复 load
+  //（之前"if (members.length === 0) await load()" 仍然会与 App.vue 并发触发，
+  //  因为 HomeView 是子组件，onMounted 早于 App.vue onMounted 完成；并发到 supabase
+  //  就是 2 个 family_members 请求。SettingsView 加成员直接 push 到 store.value，
+  //  HomeView 第二次进入会拿到最新值）
   // 防御：如果 memberIds 没值且家庭成员已加载，默认选自己
   if (form.value.memberIds.length === 0 && currentFamilyMemberId.value) {
     form.value.memberIds = [currentFamilyMemberId.value]

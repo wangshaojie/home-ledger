@@ -41,15 +41,23 @@ onMounted(async () => {
   await auth.init()
   await bootstrapBusinessData()
   ready.value = true
+  readyMarkedAt = Date.now()
 })
 
 // 监听登录态：onMounted 之后 uid 变化就重载
+// 注：auth.init() 会注册 supabase.auth.onAuthStateChange，
+// 首次启动时 INITIAL_SESSION 事件会在 ready=true 之后到达，
+// 触发 refreshProfile -> profile.family_id 变化 -> 这个 watch 也会跟着跑。
+// 用 readyMarkedAt 时间戳防抖，ready 后 500ms 内同一会话的重复触发直接丢弃
+let readyMarkedAt = 0
 watch(
   () => auth.user?.id || auth.profile?.id || '',
   async (newId, oldId) => {
     if (!ready.value) return
     if (newId === oldId) return
     if (newId) {
+      // 首次启动的 onAuthStateChange 残留，ready 后 500ms 内忽略
+      if (readyMarkedAt && Date.now() - readyMarkedAt < 500) return
       await auth.refreshProfile()
       await bootstrapBusinessData()
     } else {
@@ -65,6 +73,8 @@ watch(
     if (!ready.value) return
     if (newFid === oldFid) return
     if (newFid) {
+      // 同上，首次启动 race 防抖
+      if (readyMarkedAt && Date.now() - readyMarkedAt < 500) return
       await bootstrapBusinessData()
     }
   }
