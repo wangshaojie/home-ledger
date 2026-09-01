@@ -319,19 +319,27 @@ async function wipeLocalData() {
 
 <template>
   <div class="settings">
-    <h2 class="page-title">设置</h2>
+    <div class="page-header">
+      <div>
+        <h2 class="page-title">设置</h2>
+        <p class="page-sub">管理个人账号、家庭、成员与消费分类</p>
+      </div>
+    </div>
 
     <div class="section">
-      <div class="section-title">个人账号</div>
+      <div class="section-title"><el-icon><User /></el-icon>个人账号</div>
       <div class="info-row">
+        <span class="info-icon"><el-icon><Message /></el-icon></span>
         <span class="info-label">绑定邮箱</span>
         <span class="info-value">{{ auth.profile?.email }}</span>
       </div>
       <div class="info-row">
+        <span class="info-icon"><el-icon><OfficeBuilding /></el-icon></span>
         <span class="info-label">所属家庭</span>
         <span class="info-value">{{ familyStore.family?.name || '-' }}</span>
       </div>
       <div class="info-row">
+        <span class="info-icon"><el-icon><Calendar /></el-icon></span>
         <span class="info-label">加入时间</span>
         <span class="info-value">
           {{ auth.profile?.joined_at ? fmtDate(auth.profile.joined_at) : '-' }}
@@ -435,7 +443,7 @@ async function wipeLocalData() {
     </div>
 
     <div class="section">
-      <div class="section-title">家庭设置</div>
+      <div class="section-title"><el-icon><House /></el-icon>家庭设置</div>
 
       <div class="section-sub">家庭名称</div>
       <div style="display: flex; gap: 10px; align-items: center">
@@ -477,15 +485,11 @@ async function wipeLocalData() {
             <span v-else>未关联账号 · 父母代记账</span>
           </div>
         </div>
-        <el-button
-          v-if="!m.linked_profile_id"
-          text
-          type="danger"
-          size="small"
-          @click="removeMember(m.id, m.name)"
-        >
-          删除
-        </el-button>
+        <span v-if="!m.linked_profile_id" class="member-actions">
+          <el-button text type="danger" size="small" @click="removeMember(m.id, m.name)">
+            删除
+          </el-button>
+        </span>
       </div>
       <div v-if="familyMembers.length === 0" class="empty-mini">暂无成员</div>
 
@@ -530,15 +534,15 @@ async function wipeLocalData() {
     </el-dialog>
 
     <div class="section">
-      <div class="section-title">分类管理</div>
+      <div class="section-title"><el-icon><Collection /></el-icon>分类管理</div>
       <div class="cat-list">
-        <div v-for="c in categoryStore.items" :key="c.id" class="cat-row">
-          <span class="cat-row-icon">{{ c.icon }}</span>
+        <div v-for="(c, i) in categoryStore.items" :key="c.id" class="cat-row">
+          <span class="cat-row-icon" :class="`tone-${['orange', 'blue', 'green', 'purple', 'yellow'][i % 5]}`">{{ c.icon }}</span>
           <span class="cat-row-name">{{ c.name }}</span>
-          <span v-if="c.is_default" class="default-tag">系统</span>
-          <el-button v-else text type="danger" size="small" @click="removeCategory(c.id)">
-            删除
-          </el-button>
+          <span v-if="c.is_default" class="sys-tag">系统</span>
+          <span v-else class="member-actions">
+            <el-button text type="danger" size="small" @click="removeCategory(c.id)">删除</el-button>
+          </span>
         </div>
       </div>
       <el-button
@@ -586,17 +590,33 @@ async function wipeLocalData() {
 
 <style scoped>
 .settings {
-  max-width: 880px;
+  max-width: 1200px;
   margin: 0 auto;
 }
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 20px;
+}
 .page-title {
-  font-size: 24px;
-  margin: 0 0 20px;
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  letter-spacing: -0.3px;
+}
+.page-sub {
+  color: var(--color-text-soft);
+  font-size: 13px;
+  margin: 0;
 }
 
 .section {
   background: #fff;
-  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   padding: 24px 28px;
   box-shadow: var(--shadow-card);
   margin-bottom: 16px;
@@ -606,6 +626,18 @@ async function wipeLocalData() {
   font-weight: 600;
   color: var(--color-text);
   margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-title .el-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 15px;
+  flex-shrink: 0;
 }
 .section-sub {
   font-size: 14px;
@@ -622,11 +654,24 @@ async function wipeLocalData() {
 .info-row {
   display: flex;
   align-items: center;
+  gap: 12px;
   padding: 8px 0;
   font-size: 14px;
 }
+.info-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--color-blue-soft);
+  color: var(--color-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
 .info-label {
-  width: 100px;
+  width: 90px;
   color: var(--color-text-soft);
 }
 .info-value {
@@ -653,19 +698,32 @@ async function wipeLocalData() {
   font-weight: 600;
   letter-spacing: 4px;
   color: var(--color-primary);
-  background: #fafbfc;
-  padding: 6px 12px;
-  border-radius: 6px;
+  background: var(--color-primary-soft);
+  padding: 6px 14px;
+  border-radius: 999px;
 }
 .member-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--color-border);
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin-bottom: 4px;
+  transition: background 0.15s;
 }
 .member-row:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
+}
+.member-row:hover {
+  background: #fafbfc;
+}
+.member-actions {
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.member-row:hover .member-actions,
+.cat-row:hover .member-actions {
+  opacity: 1;
 }
 .member-info {
   display: flex;
@@ -683,22 +741,23 @@ async function wipeLocalData() {
 }
 .role-tag {
   font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: #ebeef5;
-  color: #909399;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #f1f2f4;
+  color: var(--color-text-soft);
 }
 .role-tag.self {
-  background: #fdf6ec;
+  background: var(--color-primary-soft);
   color: var(--color-primary);
 }
 .role-tag.child {
-  background: #ecf5ff;
-  color: #409eff;
+  background: var(--color-blue-soft);
+  color: var(--color-blue);
 }
 .role-tag.pet {
-  background: #f0f9eb;
-  color: #67c23a;
+  background: var(--color-green-soft);
+  color: var(--color-green);
 }
 .member-email {
   color: var(--color-text-soft);
@@ -713,21 +772,48 @@ async function wipeLocalData() {
 .cat-list {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  gap: 10px;
 }
 .cat-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: #fafbfc;
-  border-radius: 8px;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+.cat-row:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card-hover);
+  border-color: rgba(245, 108, 44, 0.35);
 }
 .cat-row-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
+.cat-row-icon.tone-orange { background: var(--color-primary-soft); }
+.cat-row-icon.tone-blue { background: var(--color-blue-soft); }
+.cat-row-icon.tone-green { background: var(--color-green-soft); }
+.cat-row-icon.tone-purple { background: var(--color-purple-soft); }
+.cat-row-icon.tone-yellow { background: var(--color-yellow-soft); }
 .cat-row-name {
   flex: 1;
   font-size: 14px;
+  font-weight: 500;
+}
+.sys-tag {
+  font-size: 11px;
+  color: var(--color-text-soft);
+  background: #f1f2f4;
+  padding: 2px 10px;
+  border-radius: 999px;
 }
 </style>

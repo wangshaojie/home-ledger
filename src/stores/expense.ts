@@ -18,6 +18,8 @@ export interface Expense {
   created_at: string
   updated_at: string
   deleted_at: string | null
+  // v2026-09-01 多人分摊：同组子记录共享同一 group_id，为 NULL 表示普通单条
+  group_id: string | null
   // 关联表 join 出来的可选字段
   // v1.1: member 指向 family_members（不再指向 profiles）
   member?: { id: string; name: string; type: 'adult' | 'child' | 'pet' } | null
@@ -268,15 +270,65 @@ export const useExpenseStore = defineStore('expense', () => {
     return { ok: true, message: '已更新' }
   }
 
-  async function remove(id: string) {
-    // 软删：更新 deleted_at
-    const { error } = await supabase
+  /**
+   * v2026-09-01 多人分摊（方案 C）
+   * 一笔总费用按成员拆成多条子记录，共享同一个 group_id，方便整组删除
+   * 分摊金额由调用方算好（均分/自定义），这里只负责批量插入
+   */
+  async function addShared(payload: {
+    splits: { memberId: string; amount: number }[]
+    payerId: string
+    categoryId: string
+    accountId: string
+    spentAt: string
+    note: string
+  }) {
+    const auth = useAuthStore()
+    const fid = auth.profile?.family_id
+    const uid = auth.user?.id || auth.profile?.id
+    if (!fid || !uid) return { ok: false, message: '未登录' }
+    const groupId = crypto.randomUUID()
+    const rows = payload.splits.map((s) => ({
+      family_id: fid,
+      creator_id: uid,
+      member_id: s.memberId,
+      payer_id: payload.payerId,
+      category_id: payload.categoryId,
+      account_id: payload.accountId,
+      amount: s.amount,
+      spent_at: payload.spentAt,
+      note: payload.note,
+      group_id: groupId
+    }))
+    const { data, error } = await supabase
       .from('expenses')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id)
+      .insert(rows)
+      .select(`
+        *,
+        member:member_id ( id, name, type ),
+        payer:payer_id ( id, name, type ),
+        category:category_id ( id, name, icon ),
+        account:account_id ( id, name, icon )
+      `)
+    if (error) return { ok: false, message: errText(error, '记账失败') }
+    items.value = [...(data as Expense[]), ...items.value]
+    return { ok: true, message: '记账成功' }
+  }
+
+  async function remove(id: string) {
+    const target = items.value.find((e) => e.id === id)
+    const groupId = target?.group_id || null
+    const stamp = new Date().toISOString()
+    // 软删：更新 deleted_at；分摊记录整组一起删
+    const q = supabase.from('expenses').update({ deleted_at: stamp })
+    if (groupId) q.eq('group_id', groupId).is('deleted_at', null)
+    else q.eq('id', id)
+    const { error } = await q
     if (error) return { ok: false, message: errText(error, '删除失败') }
-    items.value = items.value.filter((e) => e.id !== id)
-    return { ok: true, message: '已删除' }
+    items.value = groupId
+      ? items.value.filter((e) => e.group_id !== groupId)
+      : items.value.filter((e) => e.id !== id)
+    return { ok: true, message: groupId ? '已删除整组' : '已删除' }
   }
 
   function reset() {
@@ -304,6 +356,7 @@ export const useExpenseStore = defineStore('expense', () => {
     aggregateByMember,
     load,
     add,
+    addShared,
     update,
     remove,
     reset

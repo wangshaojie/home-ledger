@@ -20,6 +20,10 @@ if (!gotSingleInstanceLock) {
   process.exit(0)
 }
 
+// Windows 任务栏/标题栏图标关联，需与 electron-builder 的 appId 一致
+// （dev 模式进程是 electron.exe，图标仍为 Electron 默认图标，打包后生效）
+app.setAppUserModelId('com.homeledger.app')
+
 let mainWindow: BrowserWindow | null = null
 
 function createMainWindow() {

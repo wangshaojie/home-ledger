@@ -125,12 +125,13 @@ function goForgot() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #fff1ea 0%, #f5f5f7 100%);
+  background: linear-gradient(135deg, #fff3ec 0%, #f5f5f7 100%);
 }
 .login-card {
   width: 440px;
   padding: 40px;
   background: #fff;
+  border: 1px solid var(--color-border);
   border-radius: 16px;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.06);
 }
@@ -139,8 +140,16 @@ function goForgot() {
   margin-bottom: 24px;
 }
 .logo {
-  font-size: 48px;
-  margin-bottom: 8px;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 14px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ff8f4d 0%, #f56c2c 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  box-shadow: 0 8px 20px rgba(245, 108, 44, 0.35);
 }
 .login-header h1 {
   font-size: 24px;
@@ -163,8 +172,19 @@ function goForgot() {
 }
 .submit-btn {
   width: 100%;
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  background-image: linear-gradient(135deg, #ff8f4d 0%, #f56c2c 100%);
+  border: none;
+  border-radius: 12px;
+  box-shadow: var(--shadow-btn);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(245, 108, 44, 0.4);
+}
+.submit-btn.is-disabled {
+  background-image: none;
+  background-color: var(--el-disabled-bg-color);
 }
 .bottom-tip {
   text-align: center;

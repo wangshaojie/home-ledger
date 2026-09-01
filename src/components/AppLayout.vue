@@ -104,7 +104,7 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
 
 .sidebar {
   width: 220px;
-  background: #1f2329;
+  background: linear-gradient(180deg, #1f2329 0%, #171a1f 100%);
   color: #fff;
   display: flex;
   flex-direction: column;
@@ -115,18 +115,30 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 0 24px 24px;
-  border-bottom: 1px solid #2a2f37;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   margin-bottom: 16px;
 }
 .brand-icon {
-  font-size: 26px;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #ff8f4d, #f56c2c);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 4px 12px rgba(245, 108, 44, 0.35);
+  flex-shrink: 0;
 }
 .brand-text {
   font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 1px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav-list {
@@ -143,20 +155,23 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
   padding: 12px 16px;
   border: none;
   background: transparent;
-  color: #b8bcc4;
-  border-radius: 8px;
+  color: #9aa0ab;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 15px;
   text-align: left;
-  transition: all 0.15s;
+  transition: all 0.18s;
+  position: relative;
 }
 .nav-item:hover {
-  background: #2a2f37;
+  background: rgba(255, 255, 255, 0.07);
   color: #fff;
 }
 .nav-item.active {
-  background: var(--color-primary);
+  background: linear-gradient(135deg, #ff8f4d, #f56c2c);
   color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(245, 108, 44, 0.32);
 }
 .nav-icon {
   font-size: 18px;
@@ -164,29 +179,36 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
 
 .sidebar-footer {
   padding: 16px 20px;
-  border-top: 1px solid #2a2f37;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 .user-info {
   font-size: 12px;
-  color: #8a8f99;
+  color: #7c828d;
 }
 .user-email {
   color: #d4d6da;
   font-size: 13px;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 180px;
 }
+.sidebar-footer :deep(.el-button) {
+  color: #9aa0ab;
+}
+.sidebar-footer :deep(.el-button:hover) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+}
 
 .main-area {
   flex: 1;
   overflow: auto;
-  padding: 32px 40px;
+  padding: 32px 20px;
 }
 
 .fade-enter-active,

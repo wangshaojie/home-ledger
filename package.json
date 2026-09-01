@@ -1,6 +1,6 @@
 {
   "name": "HomeLedger",
-  "version": "1.1.11",
+  "version": "1.2.0",
   "description": "家庭支出记账软件 - Windows 桌面端",
   "main": "dist-electron/main.js",
   "author": "HomeLedger",

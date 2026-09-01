@@ -33,6 +33,7 @@ export interface DbExpense {
   family_id: string
   creator_id: string
   member_id: string
+  payer_id: string
   category_id: string
   account_id: string | null
   amount: number
@@ -41,6 +42,7 @@ export interface DbExpense {
   created_at: string
   updated_at: string
   deleted_at: string | null
+  group_id: string | null // v2026-09-01 多人分摊：同组子记录共享同一 group_id
 }
 
 /**

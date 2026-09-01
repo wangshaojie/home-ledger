@@ -37,10 +37,13 @@ const form = ref({
   amount: '',
   categoryId: '',
   accountId: '',
-  memberId: '',
+  memberIds: [] as string[],
   payerId: '',
   spentAt: new Date(),
-  note: ''
+  note: '',
+  // v2026-09-01 多人分摊（方案 C）
+  splitMode: 'equal' as 'equal' | 'custom',
+  splitAmounts: {} as Record<string, number>
 })
 
 const isEditing = computed(() => editingId.value !== null)
@@ -146,9 +149,9 @@ const currentFamilyMemberId = computed(() => currentFamilyMember.value?.id || ''
 onMounted(async () => {
   // 每次进入首页都重新拉一次成员列表,保证最新（SettingsView 加成员后能立即反映）
   await familyStore.load()
-  // 防御：如果 memberId 没值且家庭成员已加载，默认选自己
-  if (!form.value.memberId && currentFamilyMemberId.value) {
-    form.value.memberId = currentFamilyMemberId.value
+  // 防御：如果 memberIds 没值且家庭成员已加载，默认选自己
+  if (form.value.memberIds.length === 0 && currentFamilyMemberId.value) {
+    form.value.memberIds = [currentFamilyMemberId.value]
   }
   // payerId 同理
   if (!form.value.payerId && currentFamilyMemberId.value) {
@@ -158,29 +161,39 @@ onMounted(async () => {
 
 function openForm() {
   editingId.value = null
+  const defaultMid = currentFamilyMemberId.value || memberOptions.value[0]?.id || ''
   form.value = {
     amount: '',
     categoryId: categoryStore.items[0]?.id || '',
     accountId: accountStore.items[0]?.id || '',
-    memberId: currentFamilyMemberId.value || memberOptions.value[0]?.id || '',
+    memberIds: defaultMid ? [defaultMid] : [],
     payerId: currentFamilyMemberId.value || memberOptions.value[0]?.id || '',
     spentAt: new Date(),
-    note: ''
+    note: '',
+    splitMode: 'equal',
+    splitAmounts: {}
   }
   formVisible.value = true
   nextTick(() => amountInputRef.value?.focus())
 }
 
 function openEdit(e: any) {
+  // 分摊记录必须整组处理，禁止单独编辑
+  if (e.group_id) {
+    notify.info('分摊记录需整组处理，暂不支持单独编辑。如需修改，请删除整组后重新记账')
+    return
+  }
   editingId.value = e.id
   form.value = {
     amount: String(e.amount),
     categoryId: e.category_id,
     accountId: e.account_id || accountStore.items[0]?.id || '',
-    memberId: e.member_id,
+    memberIds: [e.member_id],
     payerId: e.payer_id || e.member_id,
     spentAt: new Date(e.spent_at),
-    note: e.note || ''
+    note: e.note || '',
+    splitMode: 'equal',
+    splitAmounts: {}
   }
   formVisible.value = true
 }
@@ -214,7 +227,7 @@ async function submitForm() {
     notify.error('请选择支付账户')
     return
   }
-  if (!form.value.memberId) {
+  if (form.value.memberIds.length === 0) {
     notify.error('请选择消费成员')
     return
   }
@@ -223,12 +236,12 @@ async function submitForm() {
     return
   }
   if (editingId.value) {
-    // 编辑模式
+    // 编辑模式（分摊记录已在 openEdit 拦截，这里只处理单条）
     const r = await store.update(editingId.value, {
       amount: amt,
       categoryId: form.value.categoryId,
       accountId: form.value.accountId,
-      memberId: form.value.memberId,
+      memberId: form.value.memberIds[0],
       payerId: form.value.payerId,
       spentAt: spentAtDate.toISOString(),
       note: form.value.note.trim().slice(0, 200)
@@ -240,13 +253,40 @@ async function submitForm() {
     } else {
       notify.error(r.message)
     }
+  } else if (form.value.memberIds.length > 1) {
+    // 多人分摊（方案 C）：按均分/自定义拆分后批量插入
+    if (form.value.splitMode === 'custom') {
+      const total = splitTotal.value
+      if (Math.abs(total - amt) > 0.01) {
+        notify.error(`分摊金额合计 ¥${total.toFixed(2)} 与总金额 ¥${amt.toFixed(2)} 不一致，请调整`)
+        return
+      }
+    }
+    const splits = splitPreview.value
+      .map((s) => ({ memberId: s.memberId, amount: round2(s.amount) }))
+      .filter((s) => s.amount > 0)
+    const r = await store.addShared({
+      splits,
+      payerId: form.value.payerId,
+      categoryId: form.value.categoryId,
+      accountId: form.value.accountId,
+      spentAt: spentAtDate.toISOString(),
+      note: form.value.note.trim().slice(0, 200)
+    })
+    if (r.ok) {
+      markCategoryUsed(familyStore.family?.id, form.value.categoryId)
+      closeForm()
+      notify.success(r.message)
+    } else {
+      notify.error(r.message)
+    }
   } else {
-    // 新增模式
+    // 新增模式：单条
     const r = await store.add({
       amount: amt,
       categoryId: form.value.categoryId,
       accountId: form.value.accountId,
-      memberId: form.value.memberId,
+      memberId: form.value.memberIds[0],
       payerId: form.value.payerId,
       spentAt: spentAtDate.toISOString(),
       note: form.value.note.trim().slice(0, 200)
@@ -261,17 +301,87 @@ async function submitForm() {
   }
 }
 
-async function deleteOne(id: string) {
+async function deleteOne(e: any) {
+  const isGroup = !!e.group_id
   try {
-    await ElMessageBox.confirm('确定删除这笔账单吗？', '提示', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消'
-    })
-    const r = await store.remove(id)
+    await ElMessageBox.confirm(
+      isGroup
+        ? '该记录属于多人分摊，删除后将连同整组记录一并删除，确定吗？'
+        : '确定删除这笔账单吗？',
+      '提示',
+      {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消'
+      }
+    )
+    const r = await store.remove(e.id)
     if (r.ok) notify.success(r.message)
     else notify.error(r.message)
   } catch {}
+}
+
+// ===== 多人分摊（方案 C）：金额拆分工具 =====
+function round2(n: number) {
+  return Math.round(n * 100) / 100
+}
+
+/** 均分：总金额按人数拆分，最后一人补齐差额，保证总和精确 */
+function equalSplits(amount: number, memberIds: string[]): { memberId: string; amount: number }[] {
+  const n = memberIds.length
+  if (n === 0) return []
+  const per = round2(amount / n)
+  return memberIds.map((id, i) => ({
+    memberId: id,
+    amount: i === n - 1 ? round2(amount - per * (n - 1)) : per
+  }))
+}
+
+/** 分摊预览：均分自动算，自定义用输入值 */
+const splitPreview = computed(() => {
+  const amt = parseFloat(form.value.amount) || 0
+  const ids = form.value.memberIds
+  if (ids.length === 0) return []
+  if (form.value.splitMode === 'custom') {
+    return ids.map((id) => ({
+      memberId: id,
+      name: getMemberLabel(id),
+      amount: form.value.splitAmounts[id] || 0
+    }))
+  }
+  return equalSplits(amt, ids).map((s) => ({
+    memberId: s.memberId,
+    name: getMemberLabel(s.memberId),
+    amount: s.amount
+  }))
+})
+
+const splitTotal = computed(() => splitPreview.value.reduce((s, x) => s + x.amount, 0))
+
+/** 把均分值预填到自定义金额输入框，方便微调 */
+function recomputeSplitAmounts() {
+  const amt = parseFloat(form.value.amount) || 0
+  const map: Record<string, number> = {}
+  equalSplits(amt, form.value.memberIds).forEach((s) => (map[s.memberId] = s.amount))
+  form.value.splitAmounts = map
+}
+
+function onSplitModeChange(mode: 'equal' | 'custom') {
+  if (mode === 'custom') recomputeSplitAmounts()
+}
+
+function onMembersChange() {
+  if (form.value.splitMode === 'custom') recomputeSplitAmounts()
+}
+
+/**
+ * 消费成员下拉框值统一入口：
+ * - 新增（多选）：直接是 string[]
+ * - 编辑（单选）：是 string，需包回数组，保持 form.memberIds 始终为数组
+ */
+function onMemberSelectUpdate(v: string | string[]) {
+  form.value.memberIds = Array.isArray(v) ? v : (v ? [v] : [])
+  onMembersChange()
 }
 
 /**
@@ -329,21 +439,33 @@ function fmtMoney(n: number) {
     </div>
 
     <div class="stat-row">
-      <div class="stat-card">
-        <div class="stat-label">今日支出</div>
-        <div class="stat-value">{{ fmtMoney(store.todayTotal) }}</div>
+      <div class="stat-card tone-orange">
+        <div class="stat-icon"><el-icon><Sunny /></el-icon></div>
+        <div class="stat-body">
+          <div class="stat-label">今日支出</div>
+          <div class="stat-value">{{ fmtMoney(store.todayTotal) }}</div>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">本月支出</div>
-        <div class="stat-value">{{ fmtMoney(store.monthTotal) }}</div>
+      <div class="stat-card tone-blue">
+        <div class="stat-icon"><el-icon><Calendar /></el-icon></div>
+        <div class="stat-body">
+          <div class="stat-label">本月支出</div>
+          <div class="stat-value">{{ fmtMoney(store.monthTotal) }}</div>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">本年支出</div>
-        <div class="stat-value">{{ fmtMoney(store.yearTotal) }}</div>
+      <div class="stat-card tone-green">
+        <div class="stat-icon"><el-icon><TrendCharts /></el-icon></div>
+        <div class="stat-body">
+          <div class="stat-label">本年支出</div>
+          <div class="stat-value">{{ fmtMoney(store.yearTotal) }}</div>
+        </div>
       </div>
       <div class="stat-card highlight">
-        <div class="stat-label">筛选区间合计</div>
-        <div class="stat-value">{{ fmtMoney(store.totalAmount) }}</div>
+        <div class="stat-icon"><el-icon><Wallet /></el-icon></div>
+        <div class="stat-body">
+          <div class="stat-label">筛选区间合计</div>
+          <div class="stat-value">{{ fmtMoney(store.totalAmount) }}</div>
+        </div>
       </div>
     </div>
 
@@ -395,7 +517,10 @@ function fmtMoney(n: number) {
       <div v-for="e in store.filteredExpenses" :key="e.id" class="list-row">
         <span class="cell-time">{{ formatDate(e.spent_at) }}</span>
         <span class="cell-member">
-          <span class="member-main">{{ getMemberLabel(e.member_id) }}</span>
+          <span class="member-main">
+            {{ getMemberLabel(e.member_id) }}
+            <span v-if="e.group_id" class="split-badge">分摊</span>
+          </span>
           <span v-if="e.payer_id && e.payer_id !== e.member_id" class="member-payer">
             <span class="payer-prefix">{{ getPayerLabel(e.payer_id) }} 付</span>
           </span>
@@ -430,14 +555,16 @@ function fmtMoney(n: number) {
             type="danger"
             size="small"
             :disabled="!canEditExpense()"
-            @click="deleteOne(e.id)"
+            @click="deleteOne(e)"
           >
             <el-icon><Delete /></el-icon>
           </el-button>
         </span>
       </div>
       <div v-if="store.filteredExpenses.length === 0" class="empty">
-        暂无账单
+        <div class="empty-icon"><el-icon><Wallet /></el-icon></div>
+        <div class="empty-title">暂无账单</div>
+        <div class="empty-hint">点击右上角「记一笔」开始记录家庭开支</div>
       </div>
     </div>
 
@@ -458,8 +585,9 @@ function fmtMoney(n: number) {
             step="0.01"
             max="999999.99"
             size="large"
+            class="amount-input"
           >
-            <template #prepend><span class="amount-prepend">¥</span></template>
+            <template #prefix><span class="amount-prefix">¥</span></template>
           </el-input>
         </el-form-item>
 
@@ -482,7 +610,15 @@ function fmtMoney(n: number) {
 
         <div class="form-row">
           <el-form-item label="消费成员" required>
-            <el-select v-model="form.memberId" size="default" style="width: 100%">
+            <el-select
+              :model-value="isEditing ? (form.memberIds[0] || '') : form.memberIds"
+              :multiple="!isEditing"
+              :collapse-tags="!isEditing && form.memberIds.length > 1"
+              size="default"
+              style="width: 100%"
+              :placeholder="isEditing ? '请选择消费成员' : '多选为多人分摊'"
+              @update:model-value="onMemberSelectUpdate"
+            >
               <el-option v-for="m in memberOptions" :key="m.id" :label="m.label" :value="m.id" />
             </el-select>
           </el-form-item>
@@ -493,6 +629,53 @@ function fmtMoney(n: number) {
             </el-select>
           </el-form-item>
         </div>
+
+        <!-- 多人分摊（方案 C）：选 2 人及以上时出现 -->
+        <el-form-item
+          v-if="!isEditing && form.memberIds.length > 1"
+          label="分摊方式"
+          class="form-full"
+        >
+          <div class="split-block">
+            <el-radio-group v-model="form.splitMode" size="default" @change="onSplitModeChange">
+              <el-radio-button value="equal">按人数均分</el-radio-button>
+              <el-radio-button value="custom">自定义金额</el-radio-button>
+            </el-radio-group>
+
+            <div v-if="form.splitMode === 'custom'" class="split-rows">
+              <div v-for="mid in form.memberIds" :key="mid" class="split-row">
+                <span class="split-name">{{ getMemberLabel(mid) }}</span>
+                <el-input-number
+                  v-model="form.splitAmounts[mid]"
+                  :min="0"
+                  :max="999999.99"
+                  :precision="2"
+                  :step="0.01"
+                  :controls="false"
+                  size="small"
+                  style="width: 130px"
+                />
+                <span class="split-unit">元</span>
+              </div>
+            </div>
+
+            <div class="split-preview">
+              <span v-for="s in splitPreview" :key="s.memberId" class="split-chip">
+                {{ s.name }} ¥{{ s.amount.toFixed(2) }}
+              </span>
+              <span
+                class="split-total"
+                :class="{
+                  danger:
+                    form.splitMode === 'custom' &&
+                    Math.abs(splitTotal - (parseFloat(form.amount) || 0)) > 0.01
+                }"
+              >
+                合计 ¥{{ splitTotal.toFixed(2) }}
+              </span>
+            </div>
+          </div>
+        </el-form-item>
 
         <div class="form-row">
           <el-form-item label="支付账户" required>
@@ -529,10 +712,21 @@ function fmtMoney(n: number) {
         <el-button @click="closeForm">取消</el-button>
         <el-button
           type="primary"
-          :disabled="!form.amount || !form.categoryId || !form.accountId || !form.memberId"
+          :disabled="
+            !form.amount ||
+            !form.categoryId ||
+            !form.accountId ||
+            form.memberIds.length === 0
+          "
           @click="submitForm"
         >
-          {{ isEditing ? '保存修改' : '提交' }}
+          {{
+            isEditing
+              ? '保存修改'
+              : form.memberIds.length > 1
+                ? `提交（${form.memberIds.length} 人分摊）`
+                : '提交'
+          }}
         </el-button>
       </template>
     </el-dialog>
@@ -605,27 +799,46 @@ function fmtMoney(n: number) {
 .home {
   max-width: 1200px;
   margin: 0 auto;
+  padding-bottom: 24px;
 }
 .page-header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   margin-bottom: 20px;
 }
 .page-title {
-  font-size: 24px;
+  font-size: 26px;
+  font-weight: 700;
   margin: 0 0 4px;
+  letter-spacing: -0.3px;
 }
 .page-sub {
   color: var(--color-text-soft);
-  font-size: 14px;
+  font-size: 13px;
   margin: 0;
 }
 .add-btn {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  background-image: linear-gradient(135deg, #ff8f4d, #f56c2c);
+  border: none;
+  box-shadow: var(--shadow-btn);
+  border-radius: 12px;
+  padding: 12px 22px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.add-btn:hover,
+.add-btn:focus {
+  background-image: linear-gradient(135deg, #ff9d61, #f5753a);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(245, 108, 44, 0.4);
+}
+.add-btn:active {
+  transform: translateY(0);
 }
 
+/* === 统计卡片 === */
 .stat-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -633,31 +846,133 @@ function fmtMoney(n: number) {
   margin-bottom: 20px;
 }
 .stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   background: #fff;
-  border-radius: 12px;
-  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
   box-shadow: var(--shadow-card);
+  transition: transform 0.2s, box-shadow 0.2s;
 }
-.stat-card.highlight {
-  background: linear-gradient(135deg, #fff1ea, #fff8f3);
-  border: 1px solid var(--color-primary);
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+}
+.stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.tone-orange .stat-icon {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+.tone-blue .stat-icon {
+  background: var(--color-blue-soft);
+  color: var(--color-blue);
+}
+.tone-green .stat-icon {
+  background: var(--color-green-soft);
+  color: var(--color-green);
+}
+.stat-body {
+  min-width: 0;
 }
 .stat-label {
   color: var(--color-text-soft);
-  font-size: 13px;
-  margin-bottom: 8px;
+  font-size: 12px;
+  margin-bottom: 4px;
 }
 .stat-value {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
   color: var(--color-text);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+.stat-card.highlight {
+  background: linear-gradient(135deg, #ff8f4d 0%, #f56c2c 100%);
+  border: none;
+  color: #fff;
+}
+.stat-card.highlight:hover {
+  box-shadow: 0 8px 22px rgba(245, 108, 44, 0.35);
+}
+.stat-card.highlight .stat-icon {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+.stat-card.highlight .stat-label {
+  color: rgba(255, 255, 255, 0.85);
+}
+.stat-card.highlight .stat-value {
+  color: #fff;
 }
 
 .filter-bar {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  box-shadow: var(--shadow-xs);
   margin-bottom: 16px;
+}
+/* 时间维度胶囊切换：胶囊组自身换行，胶囊之间留间距，不再挤在一起 */
+.filter-bar :deep(.el-radio-group) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+.filter-bar :deep(.el-radio-button) {
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+}
+.filter-bar :deep(.el-radio-button + .el-radio-button) {
+  margin-left: 0;
+}
+.filter-bar :deep(.el-radio-button__inner) {
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px 16px;
+  box-shadow: none;
+  color: var(--color-text-soft);
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+.filter-bar :deep(.el-radio-button__inner:hover) {
+  color: var(--color-primary);
+}
+.filter-bar :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 600;
+  box-shadow: none;
+}
+.filter-bar :deep(.el-button) {
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+/* 窄窗口：胶囊适当收紧，保证 6 个胶囊尽量排得下 */
+@media (max-width: 900px) {
+  .filter-bar :deep(.el-radio-button__inner) {
+    padding: 7px 12px;
+  }
 }
 
 .active-filters {
@@ -667,43 +982,53 @@ function fmtMoney(n: number) {
   gap: 8px;
   margin-bottom: 12px;
   padding: 10px 14px;
-  background: #f0f7ff;
-  border-radius: 8px;
-  border: 1px solid #d6e8ff;
+  background: #fff;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-xs);
 }
 .active-filters .active-label {
   font-size: 13px;
-  color: #606266;
+  color: var(--color-text-soft);
   font-weight: 500;
+}
+.active-filters :deep(.el-tag) {
+  border-radius: 6px;
 }
 
 .list-card {
   background: #fff;
-  border-radius: 12px;
-  padding: 8px 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 6px 0;
   box-shadow: var(--shadow-card);
+  overflow: hidden;
 }
 .list-head,
 .list-row {
   display: grid;
   grid-template-columns: 1.1fr 0.7fr 1.1fr 0.9fr 1.4fr 1fr 0.7fr;
   align-items: center;
-  padding: 12px 20px;
+  padding: 13px 20px;
   font-size: 13px;
 }
 .list-head {
-  color: var(--color-text-soft);
+  color: var(--color-text-muted);
   font-weight: 500;
+  background: #fafbfc;
   border-bottom: 1px solid var(--color-border);
   font-size: 12px;
-  padding: 12px 20px 8px;
+  padding: 14px 20px 10px;
 }
 .list-row {
-  border-bottom: 1px solid #f0f1f2;
-  transition: background 0.1s;
+  border-bottom: 1px solid #f2f3f5;
+  transition: background 0.15s;
 }
 .list-row:hover {
-  background: #fafbfc;
+  background: #fafbfd;
+}
+.list-row:hover .cell-actions {
+  opacity: 1;
 }
 .list-row:last-child {
   border-bottom: none;
@@ -715,11 +1040,12 @@ function fmtMoney(n: number) {
 .cell-member {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   line-height: 1.3;
 }
 .member-main {
   color: var(--color-text);
+  font-weight: 500;
 }
 .member-payer {
   font-size: 11px;
@@ -731,6 +1057,7 @@ function fmtMoney(n: number) {
   padding: 1px 6px;
   border-radius: 8px;
   font-size: 11px;
+  font-weight: 500;
 }
 .cell-note {
   color: var(--color-text-soft);
@@ -741,32 +1068,37 @@ function fmtMoney(n: number) {
 }
 .cell-amount {
   text-align: right;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--color-text);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.2px;
 }
 .cell-actions {
   text-align: right;
+  opacity: 0.35;
+  transition: opacity 0.15s;
 }
 .cat-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 10px;
+  padding: 3px 10px;
   background: var(--color-primary-soft);
-  border-radius: 12px;
+  border-radius: 999px;
   color: var(--color-primary);
   font-size: 12px;
+  font-weight: 500;
 }
 .acc-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 10px;
-  background: #ecf5ff;
-  border-radius: 12px;
-  color: #5b8ff9;
+  padding: 3px 10px;
+  background: var(--color-blue-soft);
+  border-radius: 999px;
+  color: var(--color-blue);
   font-size: 12px;
+  font-weight: 500;
 }
 .acc-icon {
   font-size: 14px;
@@ -779,13 +1111,27 @@ function fmtMoney(n: number) {
   color: var(--color-primary);
 }
 .muted {
-  color: #c0c4cc;
+  color: var(--color-text-muted);
 }
 .empty {
   text-align: center;
-  color: #c0c4cc;
-  padding: 60px 0;
-  font-size: 14px;
+  padding: 56px 0;
+}
+.empty-icon {
+  font-size: 42px;
+  color: var(--color-text-muted);
+  opacity: 0.5;
+  margin-bottom: 12px;
+}
+.empty-title {
+  color: var(--color-text-soft);
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.empty-hint {
+  color: var(--color-text-muted);
+  font-size: 13px;
 }
 
 .cat-grid {
@@ -810,18 +1156,21 @@ function fmtMoney(n: number) {
 }
 .cat-cell:hover {
   border-color: var(--color-primary);
+  box-shadow: var(--shadow-xs);
+  transform: translateY(-1px);
 }
 .cat-cell.active {
   border-color: var(--color-primary);
   background: var(--color-primary-soft);
   color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
 }
 .cat-icon-lg {
   font-size: 22px;
 }
 .hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-muted);
   margin-top: 4px;
 }
 
@@ -847,11 +1196,31 @@ function fmtMoney(n: number) {
 }
 
 /* === 分步弹框：Step 1 主表单 === */
-.amount-prepend {
-  font-size: 18px;
-  font-weight: 600;
+.amount-input :deep(.el-input__wrapper) {
+  border-radius: 10px;
+  padding: 4px 12px;
+  box-shadow: 0 0 0 1px var(--color-border) inset;
+  transition: box-shadow 0.15s;
+}
+.amount-input :deep(.el-input__wrapper:hover),
+.amount-input :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--color-primary) inset;
+}
+.amount-input :deep(.el-input__prefix) {
+  padding-right: 8px;
+}
+.amount-prefix {
+  font-size: 22px;
+  font-weight: 700;
   color: var(--color-primary);
   letter-spacing: 0;
+}
+.amount-input :deep(.el-input__inner) {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  height: 36px;
+  line-height: 36px;
 }
 
 .cat-pick-btn {
@@ -936,11 +1305,14 @@ function fmtMoney(n: number) {
 .cat-cell-sm:hover {
   border-color: var(--color-primary);
   color: var(--color-text);
+  box-shadow: var(--shadow-xs);
+  transform: translateY(-1px);
 }
 .cat-cell-sm.active {
   border-color: var(--color-primary);
   background: var(--color-primary-soft);
   color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
 }
 .cat-icon-md {
   font-size: 22px;
@@ -949,5 +1321,96 @@ function fmtMoney(n: number) {
 .cat-name-sm {
   font-size: 12px;
   line-height: 1.2;
+}
+
+/* === 多人分摊（方案 C）=== */
+.split-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--color-green-soft);
+  color: var(--color-green);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  vertical-align: 1px;
+}
+.split-block {
+  width: 100%;
+}
+.split-block :deep(.el-radio-group) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+.split-block :deep(.el-radio-button) {
+  margin: 0;
+  padding: 0;
+}
+.split-block :deep(.el-radio-button + .el-radio-button) {
+  margin-left: 0;
+}
+.split-block :deep(.el-radio-button__inner) {
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 6px 14px;
+  box-shadow: none;
+  color: var(--color-text-soft);
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+.split-block :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 600;
+  box-shadow: none;
+}
+.split-rows {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.split-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.split-name {
+  min-width: 64px;
+  font-size: 13px;
+  color: var(--color-text);
+  font-weight: 500;
+}
+.split-unit {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.split-preview {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.split-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 500;
+}
+.split-total {
+  font-size: 12px;
+  color: var(--color-text-soft);
+  margin-left: 4px;
+}
+.split-total.danger {
+  color: var(--el-color-danger);
+  font-weight: 600;
 }
 </style>

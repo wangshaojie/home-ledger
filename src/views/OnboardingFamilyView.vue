@@ -144,12 +144,13 @@ async function joinByInvite() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #fff1ea 0%, #f5f5f7 100%);
+  background: linear-gradient(135deg, #fff3ec 0%, #f5f5f7 100%);
 }
 .onboard-card {
   width: 520px;
   padding: 44px;
   background: #fff;
+  border: 1px solid var(--color-border);
   border-radius: 16px;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.06);
 }
@@ -173,10 +174,31 @@ async function joinByInvite() {
 .submit-btn,
 .join-btn {
   width: 100%;
+  border-radius: 12px;
 }
 .submit-btn {
-  background: var(--color-primary);
+  background-image: linear-gradient(135deg, #ff8f4d 0%, #f56c2c 100%);
+  border: none;
+  box-shadow: var(--shadow-btn);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(245, 108, 44, 0.4);
+}
+.submit-btn.is-disabled {
+  background-image: none;
+  background-color: var(--el-disabled-bg-color);
+}
+.join-btn {
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.join-btn:hover {
   border-color: var(--color-primary);
+  color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(245, 108, 44, 0.15);
 }
 .div-text {
   font-size: 12px;

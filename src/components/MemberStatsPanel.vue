@@ -148,6 +148,46 @@ function formatBarLabel(v: number) {
   return '¥' + Math.round(v)
 }
 
+// 成员色板：与全局 --color-primary / --color-{blue,green,purple,yellow} 保持一致
+const MEMBER_COLORS = ['#f56c2c', '#4f7cff', '#2fb55f', '#8a63f4', '#f5a623', '#00b8a9', '#e05a9c']
+
+// 同一成员在"按付款人 / 按消费成员"两张图中保持同一颜色（按 memberId 稳定映射，而非数组下标）
+const memberColorMap = new Map<string, number>()
+let nextColorSlot = 0
+function colorOf(memberId: string): string {
+  const key = memberId || '__none__'
+  let idx = memberColorMap.get(key)
+  if (idx === undefined) {
+    idx = nextColorSlot++ % MEMBER_COLORS.length
+    memberColorMap.set(key, idx)
+  }
+  return MEMBER_COLORS[idx]
+}
+
+// 把 hex 颜色向浅色方向混合（factor: 0~1，越大越接近白色）
+function lighten(hex: string, factor: number): string {
+  const n = parseInt(hex.slice(1), 16)
+  const r = Math.min(255, Math.round(((n >> 16) & 255) + (255 - ((n >> 16) & 255)) * factor))
+  const g = Math.min(255, Math.round(((n >> 8) & 255) + (255 - ((n >> 8) & 255)) * factor))
+  const b = Math.min(255, Math.round((n & 255) + (255 - (n & 255)) * factor))
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`
+}
+
+// 每个成员的柱体用其专属色的渐变（浅→深，延续原来的渐变质感）
+function barGradient(color: string) {
+  return {
+    type: 'linear',
+    x: 0,
+    y: 0,
+    x2: 1,
+    y2: 0,
+    colorStops: [
+      { offset: 0, color: lighten(color, 0.4) },
+      { offset: 1, color }
+    ]
+  }
+}
+
 // 横向 bar 配置
 function buildOption(rows: MemberAgg[], total: number, title: string) {
   // 按金额降序
@@ -177,9 +217,15 @@ function buildOption(rows: MemberAgg[], total: number, title: string) {
         data: sorted.map((r) => ({
           value: r.total,
           name: r.name,
-          memberId: r.memberId
+          memberId: r.memberId,
+          // 每人一个专属色（同成员在两张图中颜色一致）
+          itemStyle: { color: barGradient(colorOf(r.memberId)) }
         })),
-        itemStyle: { color: '#409EFF', borderRadius: [0, 4, 4, 0] },
+        itemStyle: {
+          borderRadius: [0, 6, 6, 0],
+          shadowColor: 'rgba(15, 23, 42, 0.10)',
+          shadowBlur: 6
+        },
         label: {
           show: true,
           position: 'right',
@@ -260,23 +306,57 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
 
 <style scoped>
 .member-stats-panel {
-  background: white;
-  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   padding: 20px;
   margin-bottom: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-card);
 }
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   margin-bottom: 16px;
 }
 .panel-head h3 {
   margin: 0;
   font-size: 16px;
-  color: #303133;
+  color: var(--color-text);
+  font-weight: 700;
+}
+/* 面板内时间胶囊与首页筛选风格统一：胶囊间留间距、可换行 */
+.panel-head :deep(.el-radio-group) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+.panel-head :deep(.el-radio-button) {
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+}
+.panel-head :deep(.el-radio-button + .el-radio-button) {
+  margin-left: 0;
+}
+.panel-head :deep(.el-radio-button__inner) {
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 6px 14px;
+  box-shadow: none;
+  color: var(--color-text-soft);
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+.panel-head :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
   font-weight: 600;
+  box-shadow: none;
 }
 .dual-chart {
   display: grid;
@@ -292,14 +372,15 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
   justify-content: space-between;
   align-items: center;
   font-size: 14px;
-  color: #606266;
+  color: var(--color-text-soft);
   margin-bottom: 8px;
   padding: 0 4px;
 }
 .chart-title .total {
-  font-weight: 600;
-  color: #303133;
+  font-weight: 700;
+  color: var(--color-text);
   font-size: 15px;
+  font-variant-numeric: tabular-nums;
 }
 .chart {
   height: 280px;
@@ -308,7 +389,7 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
 }
 .hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-muted);
   margin-top: 4px;
   text-align: center;
 }
@@ -317,9 +398,9 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #909399;
-  background: #fafafa;
-  border-radius: 4px;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
   font-size: 13px;
 }
 .single-chart {
@@ -333,13 +414,14 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
 }
 .single-total .label {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-muted);
 }
 .single-total .value {
   font-size: 22px;
-  font-weight: 600;
-  color: #303133;
+  font-weight: 700;
+  color: var(--color-text);
   margin-top: 4px;
+  font-variant-numeric: tabular-nums;
 }
 @media (max-width: 768px) {
   .dual-chart {
