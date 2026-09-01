@@ -36,7 +36,13 @@ function createMainWindow() {
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#f5f5f7',
-    icon: path.join(__dirname, '..', 'build', 'icon.ico'),
+    // dev 模式用项目里的 build/icon.ico（开发体验一致）
+    // 生产模式不传——让 Windows 用主 exe 嵌入图标（electron-builder build.win.icon 嵌进去的）
+    // 之前 __dirname 在 asar 里解析成 dist-electron/，../build/icon.ico 不存在，
+    // 任务栏会 fallback 到 Electron 默认 logo（v1.2.3 修）
+    icon: VITE_DEV_SERVER_URL
+      ? path.join(__dirname, '..', 'build', 'icon.ico')
+      : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
