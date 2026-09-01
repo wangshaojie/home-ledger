@@ -35,49 +35,57 @@ interface MemberAgg { memberId: string; total: number; name: string }
 
 const byCreator = ref<MemberAgg[]>([])
 const byMember = ref<MemberAgg[]>([])
+// 聚合请求进行中:用于图表区域的 v-loading
+// 与 store.loading 独立(loadStats 走 aggregateBy* RPC,不挂 store.loading 通道)
+const statsLoading = ref(false)
 
 // 竞态保护：快速切换筛选时丢弃过期聚合结果
 let statsSeq = 0
 
 async function loadStats() {
   const seq = ++statsSeq
-  // familyStore.members 由 App.vue bootstrap 拉；这里只读不重拉
-  //（之前 if (members.length === 0) await familyStore.load() 会在首次启动和
-  //  App.vue bootstrap 同步到达时重复打 family_members 接口）
-  // 跟 HomeView 列表筛选保持一致:把 categoryIds/memberIds/amount 一起传给 aggregate
-  const f = expenseStore.filter
-  const extraFilter = {
-    categoryIds: f.categoryIds,
-    memberIds: f.memberIds,
-    minAmount: f.minAmount,
-    maxAmount: f.maxAmount
+  statsLoading.value = true
+  try {
+    // familyStore.members 由 App.vue bootstrap 拉；这里只读不重拉
+    //（之前 if (members.length === 0) await familyStore.load() 会在首次启动和
+    //  App.vue bootstrap 同步到达时重复打 family_members 接口）
+    // 跟 HomeView 列表筛选保持一致:把 categoryIds/memberIds/amount 一起传给 aggregate
+    const f = expenseStore.filter
+    const extraFilter = {
+      categoryIds: f.categoryIds,
+      memberIds: f.memberIds,
+      minAmount: f.minAmount,
+      maxAmount: f.maxAmount
+    }
+    const since = rangeStartIso(f.range)
+    const [creator, member] = await Promise.all([
+      expenseStore.aggregateByCreator(since, extraFilter),
+      expenseStore.aggregateByMember(since, extraFilter)
+    ])
+    if (seq !== statsSeq) return // 过期请求丢弃
+    // creator 维度: aggregateByCreator 返回的 memberId 实际是 profile.id (expenses.creator_id FK 到 profiles)
+    // 需要翻译成 family_member.id 才能用 familyStore.members 找名字
+    // family_member.linked_profile_id = profile.id
+    function profileToFamilyMemberId(profileId: string): string | null {
+      const fm = familyStore.members.find((x) => x.linked_profile_id === profileId)
+      return fm?.id || null
+    }
+    function resolveName(familyMemberId: string | null, fallback: string): string {
+      if (!familyMemberId) return fallback.slice(0, 8) // 孤儿 profile,显示 ID 前 8 位
+      const m = familyStore.members.find((x) => x.id === familyMemberId)
+      if (m) return displayNameOf(m)
+      return fallback.slice(0, 8)
+    }
+    byCreator.value = creator
+      .map((c) => {
+        const fmId = profileToFamilyMemberId(c.memberId)
+        return { memberId: fmId || c.memberId, total: c.total, name: resolveName(fmId, c.memberId) }
+      })
+      .filter((x) => x.memberId) // 孤儿 profile 暂时不显示
+    byMember.value = member.map((m) => ({ ...m, name: resolveName(m.memberId, m.memberId) }))
+  } finally {
+    if (seq === statsSeq) statsLoading.value = false
   }
-  const since = rangeStartIso(f.range)
-  const [creator, member] = await Promise.all([
-    expenseStore.aggregateByCreator(since, extraFilter),
-    expenseStore.aggregateByMember(since, extraFilter)
-  ])
-  if (seq !== statsSeq) return // 过期请求丢弃
-  // creator 维度: aggregateByCreator 返回的 memberId 实际是 profile.id (expenses.creator_id FK 到 profiles)
-  // 需要翻译成 family_member.id 才能用 familyStore.members 找名字
-  // family_member.linked_profile_id = profile.id
-  function profileToFamilyMemberId(profileId: string): string | null {
-    const fm = familyStore.members.find((x) => x.linked_profile_id === profileId)
-    return fm?.id || null
-  }
-  function resolveName(familyMemberId: string | null, fallback: string): string {
-    if (!familyMemberId) return fallback.slice(0, 8) // 孤儿 profile,显示 ID 前 8 位
-    const m = familyStore.members.find((x) => x.id === familyMemberId)
-    if (m) return displayNameOf(m)
-    return fallback.slice(0, 8)
-  }
-  byCreator.value = creator
-    .map((c) => {
-      const fmId = profileToFamilyMemberId(c.memberId)
-      return { memberId: fmId || c.memberId, total: c.total, name: resolveName(fmId, c.memberId) }
-    })
-    .filter((x) => x.memberId) // 孤儿 profile 暂时不显示
-  byMember.value = member.map((m) => ({ ...m, name: resolveName(m.memberId, m.memberId) }))
 }
 
 // 监听 expenseStore.revision（数据版本号）：任何筛选变化都会触发 store 的 load()
@@ -238,14 +246,20 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
     </div>
 
     <div v-if="onlyOneMember" class="single-chart">
-      <v-chart
-        v-if="byMember.length > 0"
-        class="chart"
-        :option="singleOption"
-        :init-options="{ renderer: 'canvas' }"
-        @click="(p: any) => onBarClick(p.data?.memberId)"
-      />
-      <div v-else class="empty-tip">本月还没有支出数据</div>
+      <div
+        v-loading="statsLoading"
+        element-loading-text="数据加载中…"
+        class="chart-box"
+      >
+        <v-chart
+          v-if="byMember.length > 0"
+          class="chart"
+          :option="singleOption"
+          :init-options="{ renderer: 'canvas' }"
+          @click="(p: any) => onBarClick(p.data?.memberId)"
+        />
+        <div v-else-if="!statsLoading" class="empty-tip">本月还没有支出数据</div>
+      </div>
       <div class="single-total">
         <div class="label">总支出</div>
         <div class="value">¥{{ singleTotalDisplay.toFixed(2) }}</div>
@@ -258,14 +272,20 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
           <span>按付款人（我付的）</span>
           <span class="total">¥{{ creatorTotalDisplay.toFixed(2) }}</span>
         </div>
-        <v-chart
-          v-if="byCreator.length > 0"
-          class="chart"
-          :option="creatorOption"
-          :init-options="{ renderer: 'canvas' }"
-          @click="(p: any) => onBarClick(p.data?.memberId)"
-        />
-        <div v-else class="empty-tip">本月还没有支出数据</div>
+        <div
+          v-loading="statsLoading"
+          element-loading-text="数据加载中…"
+          class="chart-box"
+        >
+          <v-chart
+            v-if="byCreator.length > 0"
+            class="chart"
+            :option="creatorOption"
+            :init-options="{ renderer: 'canvas' }"
+            @click="(p: any) => onBarClick(p.data?.memberId)"
+          />
+          <div v-else-if="!statsLoading" class="empty-tip">本月还没有支出数据</div>
+        </div>
         <div class="hint">点击柱子查看该付款人的账单</div>
       </div>
       <div class="chart-cell">
@@ -273,14 +293,20 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
           <span>按消费成员（钱算谁头上）</span>
           <span class="total">¥{{ memberTotalDisplay.toFixed(2) }}</span>
         </div>
-        <v-chart
-          v-if="byMember.length > 0"
-          class="chart"
-          :option="memberOption"
-          :init-options="{ renderer: 'canvas' }"
-          @click="(p: any) => onBarClick(p.data?.memberId)"
-        />
-        <div v-else class="empty-tip">本月还没有支出数据</div>
+        <div
+          v-loading="statsLoading"
+          element-loading-text="数据加载中…"
+          class="chart-box"
+        >
+          <v-chart
+            v-if="byMember.length > 0"
+            class="chart"
+            :option="memberOption"
+            :init-options="{ renderer: 'canvas' }"
+            @click="(p: any) => onBarClick(p.data?.memberId)"
+          />
+          <div v-else-if="!statsLoading" class="empty-tip">本月还没有支出数据</div>
+        </div>
         <div class="hint">点击柱子查看该消费成员的账单</div>
       </div>
     </div>
@@ -338,6 +364,11 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
   height: 280px;
   width: 100%;
   cursor: pointer;
+}
+.chart-box {
+  position: relative;
+  min-height: 280px;
+  border-radius: var(--radius-md);
 }
 .hint {
   font-size: 12px;

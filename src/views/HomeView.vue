@@ -31,6 +31,8 @@ const formVisible = ref(false)
 const filterVisible = ref(false)
 const editingId = ref<string | null>(null)
 const listEl = ref<HTMLElement | null>(null)
+// 提交锁：避免网络往返期间用户重复点击/回车导致重复记账
+const submitting = ref(false)
 
 // 成员统计点击柱子 → 跳到列表 + 预填 memberIds（MemberStatsPanel emit）
 async function onJumpToList(memberId: string) {
@@ -211,103 +213,111 @@ function openEdit(e: any) {
 function closeForm() {
   formVisible.value = false
   editingId.value = null
+  submitting.value = false
 }
 
 async function submitForm() {
-  // 防御性归一：el-date-picker 默认写回 Date 对象，但若加了 value-format='x' 会变成 number
-  // 这里统一转成 Date 再 toISOString,避免 "toISOString is not a function" 报错
-  const spentAtDate =
-    form.value.spentAt instanceof Date
-      ? form.value.spentAt
-      : new Date(form.value.spentAt)
-  if (Number.isNaN(spentAtDate.getTime())) {
-    notify.error('消费时间无效')
-    return
-  }
-  const amt = parseFloat(form.value.amount)
-  if (!amt || amt <= 0 || amt > 999999.99) {
-    notify.error('金额必须大于 0 且不超过 999999.99')
-    return
-  }
-  if (!form.value.categoryId) {
-    notify.error('请选择分类')
-    return
-  }
-  if (!form.value.accountId) {
-    notify.error('请选择支付账户')
-    return
-  }
-  if (form.value.memberIds.length === 0) {
-    notify.error('请选择消费成员')
-    return
-  }
-  if (!form.value.payerId) {
-    notify.error('请选择付款人')
-    return
-  }
-  if (editingId.value) {
-    // 编辑模式（分摊记录已在 openEdit 拦截，这里只处理单条）
-    const r = await store.update(editingId.value, {
-      amount: amt,
-      categoryId: form.value.categoryId,
-      accountId: form.value.accountId,
-      memberId: form.value.memberIds[0],
-      payerId: form.value.payerId,
-      spentAt: spentAtDate.toISOString(),
-      note: form.value.note.trim().slice(0, 200)
-    })
-    if (r.ok) {
-      markCategoryUsed(familyStore.family?.id, form.value.categoryId)
-      closeForm()
-      notify.success(r.message)
-    } else {
-      notify.error(r.message)
+  // 防止重复提交：网络往返期间用户再次点击/按回车会被直接拦掉
+  if (submitting.value) return
+  submitting.value = true
+  try {
+    // 防御性归一：el-date-picker 默认写回 Date 对象，但若加了 value-format='x' 会变成 number
+    // 这里统一转成 Date 再 toISOString,避免 "toISOString is not a function" 报错
+    const spentAtDate =
+      form.value.spentAt instanceof Date
+        ? form.value.spentAt
+        : new Date(form.value.spentAt)
+    if (Number.isNaN(spentAtDate.getTime())) {
+      notify.error('消费时间无效')
+      return
     }
-  } else if (form.value.memberIds.length > 1) {
-    // 多人分摊（方案 C）：按均分/自定义拆分后批量插入
-    if (form.value.splitMode === 'custom') {
-      const total = splitTotal.value
-      if (Math.abs(total - amt) > 0.01) {
-        notify.error(`分摊金额合计 ¥${total.toFixed(2)} 与总金额 ¥${amt.toFixed(2)} 不一致，请调整`)
-        return
+    const amt = parseFloat(form.value.amount)
+    if (!amt || amt <= 0 || amt > 999999.99) {
+      notify.error('金额必须大于 0 且不超过 999999.99')
+      return
+    }
+    if (!form.value.categoryId) {
+      notify.error('请选择分类')
+      return
+    }
+    if (!form.value.accountId) {
+      notify.error('请选择支付账户')
+      return
+    }
+    if (form.value.memberIds.length === 0) {
+      notify.error('请选择消费成员')
+      return
+    }
+    if (!form.value.payerId) {
+      notify.error('请选择付款人')
+      return
+    }
+    if (editingId.value) {
+      // 编辑模式（分摊记录已在 openEdit 拦截，这里只处理单条）
+      const r = await store.update(editingId.value, {
+        amount: amt,
+        categoryId: form.value.categoryId,
+        accountId: form.value.accountId,
+        memberId: form.value.memberIds[0],
+        payerId: form.value.payerId,
+        spentAt: spentAtDate.toISOString(),
+        note: form.value.note.trim().slice(0, 200)
+      })
+      if (r.ok) {
+        markCategoryUsed(familyStore.family?.id, form.value.categoryId)
+        closeForm()
+        notify.success(r.message)
+      } else {
+        notify.error(r.message)
+      }
+    } else if (form.value.memberIds.length > 1) {
+      // 多人分摊（方案 C）：按均分/自定义拆分后批量插入
+      if (form.value.splitMode === 'custom') {
+        const total = splitTotal.value
+        if (Math.abs(total - amt) > 0.01) {
+          notify.error(`分摊金额合计 ¥${total.toFixed(2)} 与总金额 ¥${amt.toFixed(2)} 不一致，请调整`)
+          return
+        }
+      }
+      const splits = splitPreview.value
+        .map((s) => ({ memberId: s.memberId, amount: round2(s.amount) }))
+        .filter((s) => s.amount > 0)
+      const r = await store.addShared({
+        splits,
+        payerId: form.value.payerId,
+        categoryId: form.value.categoryId,
+        accountId: form.value.accountId,
+        spentAt: spentAtDate.toISOString(),
+        note: form.value.note.trim().slice(0, 200)
+      })
+      if (r.ok) {
+        markCategoryUsed(familyStore.family?.id, form.value.categoryId)
+        closeForm()
+        notify.success(r.message)
+      } else {
+        notify.error(r.message)
+      }
+    } else {
+      // 新增模式：单条
+      const r = await store.add({
+        amount: amt,
+        categoryId: form.value.categoryId,
+        accountId: form.value.accountId,
+        memberId: form.value.memberIds[0],
+        payerId: form.value.payerId,
+        spentAt: spentAtDate.toISOString(),
+        note: form.value.note.trim().slice(0, 200)
+      })
+      if (r.ok) {
+        markCategoryUsed(familyStore.family?.id, form.value.categoryId)
+        closeForm()
+        notify.success(r.message)
+      } else {
+        notify.error(r.message)
       }
     }
-    const splits = splitPreview.value
-      .map((s) => ({ memberId: s.memberId, amount: round2(s.amount) }))
-      .filter((s) => s.amount > 0)
-    const r = await store.addShared({
-      splits,
-      payerId: form.value.payerId,
-      categoryId: form.value.categoryId,
-      accountId: form.value.accountId,
-      spentAt: spentAtDate.toISOString(),
-      note: form.value.note.trim().slice(0, 200)
-    })
-    if (r.ok) {
-      markCategoryUsed(familyStore.family?.id, form.value.categoryId)
-      closeForm()
-      notify.success(r.message)
-    } else {
-      notify.error(r.message)
-    }
-  } else {
-    // 新增模式：单条
-    const r = await store.add({
-      amount: amt,
-      categoryId: form.value.categoryId,
-      accountId: form.value.accountId,
-      memberId: form.value.memberIds[0],
-      payerId: form.value.payerId,
-      spentAt: spentAtDate.toISOString(),
-      note: form.value.note.trim().slice(0, 200)
-    })
-    if (r.ok) {
-      markCategoryUsed(familyStore.family?.id, form.value.categoryId)
-      closeForm()
-      notify.success(r.message)
-    } else {
-      notify.error(r.message)
-    }
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -721,10 +731,12 @@ function fmtMoney(n: number) {
       </el-form>
 
       <template #footer>
-        <el-button @click="closeForm">取消</el-button>
+        <el-button @click="closeForm" :disabled="submitting">取消</el-button>
         <el-button
           type="primary"
+          :loading="submitting"
           :disabled="
+            submitting ||
             !form.amount ||
             !form.categoryId ||
             !form.accountId ||

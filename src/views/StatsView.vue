@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useExpenseStore } from '@/stores/expense'
 import { useCategoryStore } from '@/stores/category'
 import { usePaymentAccountStore } from '@/stores/paymentAccount'
@@ -301,6 +301,14 @@ const totalInRange = computed(() =>
 function fmt(n: number) {
   return '¥ ' + Number(n).toFixed(2)
 }
+
+// 首次进入统计页时,如果 expense 还没拉过数据(从非首页直接进来),
+// 主动触发一次 load,否则用户会看到一片空白图表
+onMounted(() => {
+  if (!store.loading && store.items.length === 0) {
+    void store.load()
+  }
+})
 </script>
 
 <template>
@@ -331,7 +339,11 @@ function fmt(n: number) {
       </div>
     </div>
 
-    <div class="top-row">
+    <div
+      class="top-row"
+      v-loading="store.loading"
+      element-loading-text="数据加载中…"
+    >
       <div class="big-stat highlight">
         <div class="big-stat-icon"><el-icon><TrendCharts /></el-icon></div>
         <div>
@@ -365,17 +377,29 @@ function fmt(n: number) {
       </div>
     </div>
 
-    <div class="chart-card">
+    <div
+      class="chart-card"
+      v-loading="store.loading"
+      element-loading-text="数据加载中…"
+    >
       <div class="chart-title">{{ periodLabel }}每日支出趋势</div>
       <v-chart class="chart" :option="lineOption" autoresize />
     </div>
 
     <div class="chart-row">
-      <div class="chart-card">
+      <div
+        class="chart-card"
+        v-loading="store.loading"
+        element-loading-text="数据加载中…"
+      >
         <div class="chart-title">分类支出占比</div>
         <v-chart class="chart" :option="pieOption" autoresize />
       </div>
-      <div class="chart-card">
+      <div
+        class="chart-card"
+        v-loading="store.loading"
+        element-loading-text="数据加载中…"
+      >
         <div class="chart-title">分类支出明细</div>
         <div class="cat-bars">
           <div v-for="c in categoryData" :key="c.name" class="cat-bar-row">
@@ -399,11 +423,19 @@ function fmt(n: number) {
     </div>
 
     <div class="chart-row">
-      <div class="chart-card">
+      <div
+        class="chart-card"
+        v-loading="store.loading"
+        element-loading-text="数据加载中…"
+      >
         <div class="chart-title">支付账户占比</div>
         <v-chart class="chart" :option="accountPieOption" autoresize />
       </div>
-      <div class="chart-card">
+      <div
+        class="chart-card"
+        v-loading="store.loading"
+        element-loading-text="数据加载中…"
+      >
         <div class="chart-title">支付账户明细</div>
         <div class="cat-bars">
           <div v-for="a in accountData" :key="a.id" class="cat-bar-row">
