@@ -84,14 +84,31 @@ async function loadStats() {
 // 首次启动：expense.load() 完成 revision 0→1 时 watch 也会触发 loadStats，
 // 所以不需要 onMounted(loadStats) —— 之前两者同时跑会双触发聚合请求。
 // 另监听家庭成员数量，新增成员后图表出现新柱子。
+// v2026-09-02 修复:切菜单回来图表空白
+//   之前只靠 watch(revision) 触发 loadStats,但当 MemberStatsPanel 被销毁再重建
+//   (切到统计页再切回记账页)时,revision 已经停在最新值,watch 不会再次触发,
+//   而 HomeView / App.vue 都不会在切回时再调 expense.load(),导致 loadStats 永远不跑
+// 修法:onMounted 主动调一次,首次启动由 isFirstWatch 标记抑制首次 watch
+//   防止双触发
+let isFirstWatch = true
 let statsTimer: ReturnType<typeof setTimeout> | null = null
 watch(
   [() => expenseStore.revision, () => familyStore.members.length],
   () => {
+    if (isFirstWatch) {
+      isFirstWatch = false
+      return
+    }
     if (statsTimer) clearTimeout(statsTimer)
     statsTimer = setTimeout(() => void loadStats(), 250)
   }
 )
+
+onMounted(() => {
+  // 主动拉一次:覆盖"切菜单回来 revision 不变 → watch 不触发"的场景
+  // 首次启动时 isFirstWatch=true,这里主动 load;挂载后 watch 立即跑一次被抑制
+  void loadStats()
+})
 
 // 决定要不要退化为单图
 const onlyOneMember = computed(() => familyStore.members.length <= 1)

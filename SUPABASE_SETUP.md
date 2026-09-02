@@ -82,6 +82,37 @@ order by polname;
 
 > 注：策略名**仍是**"创建者可改/可删"（保留原名字以免和历史脚本冲突），但实际判断已经改成"同家庭可改/可删"。
 
+### 2.8 mcp_device.sql（v1.3 新增 · AI agent 记账 · 必须）
+
+**MCP server 接入**。让 AI agent（Codex / Mavis / WorkBuddy 等）通过短期 access_token 调 Supabase，而不是用 service_role。
+
+安全模型：
+- MCP server 永远拿不到 service_role，只能用用户授权的 32 字节 token
+- token 存 bcrypt 哈希在 `mcp_device_tokens` 表
+- 每用户最多 5 台活跃设备，30 天自动过期
+- 每用户每分钟最多 30 次写、120 次读
+- 所有调用进 `mcp_audit_log` 审计
+
+复制 `supabase/mcp_device.sql` 全部内容粘贴进去 → Run
+
+应看到 2 张表创建 + 7 个 RPC 创建（末尾 `do $$` 块会输出数量确认）。
+
+### 2.9 mcp_device_views.sql（v1.3 新增 · 必须）
+
+桌面端 Vue 用这两个 RPC 列"已连接设备"和"AI 记账历史"。
+
+复制 `supabase/mcp_device_views.sql` 全部内容粘贴进去 → Run
+
+应看到 2 个 RPC 创建成功（`mcp_list_my_devices`、`mcp_list_my_audit_log`）。
+
+### 2.10 verify_mcp_device.sql（v1.3 新增 · 验证用）
+
+可选。跑完上面两个 SQL 后执行，确认表、RPC、RLS、grant 都对。
+
+复制 `supabase/verify_mcp_device.sql` 全部内容粘贴进去 → Run
+
+应看到 4 个 ✅ PASS（表数、RPC 数、RLS 启用、grant 配置）。
+
 ## 3. 配置 Auth
 
 ### 3.1 开启邮箱 OTP

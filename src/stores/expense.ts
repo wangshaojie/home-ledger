@@ -282,6 +282,54 @@ export const useExpenseStore = defineStore('expense', () => {
     return map
   }
 
+  /**
+   * v2026-09-02 统计页专用:按指定 range 拉数据(覆盖当前 filter.range)
+   * 用于统计页进入 / 切 range 时拉足够的数据,
+   * 不影响记账页 HomeView 的 filter 状态
+   */
+  async function loadForStats(statsRange: 'month' | 'all') {
+    const seq = ++loadSeq
+    const auth = useAuthStore()
+    const fid = auth.profile?.family_id
+    if (!fid) {
+      items.value = []
+      return
+    }
+    loading.value = true
+
+    let q = supabase
+      .from('expenses')
+      .select(`
+        *,
+        member:member_id ( id, name, type ),
+        payer:payer_id ( id, name, type ),
+        category:category_id ( id, name, icon ),
+        account:account_id ( id, name, icon )
+      `)
+      .eq('family_id', fid)
+      .is('deleted_at', null)
+    // 统计页的 range 不依赖 HomeView 的 filter(可能记的是 today/week)
+    // 'month' 走 SQL month 下界;'all' / 'year' / 'lastYear' / 'beforeLastYear' / 'custom' 走全量
+    const since = rangeStartIso(statsRange)
+    if (since) q = q.gte('spent_at', since)
+
+    try {
+      const { data, error } = await q.order('spent_at', { ascending: false })
+      if (seq !== loadSeq) return
+      if (error) {
+        console.error('loadForStats error', error)
+        return
+      }
+      items.value = (data || []) as Expense[]
+      revision.value++
+    } catch (e) {
+      console.error('loadForStats error', e)
+    } finally {
+      if (seq === loadSeq) loading.value = false
+    }
+    if (seq === loadSeq) await loadTotals()
+  }
+
   async function load() {
     const seq = ++loadSeq
     const auth = useAuthStore()
@@ -506,6 +554,7 @@ export const useExpenseStore = defineStore('expense', () => {
     aggregateByMember,
     aggregateByAccount,
     load,
+    loadForStats,
     add,
     addShared,
     update,

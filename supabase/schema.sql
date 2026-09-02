@@ -51,7 +51,7 @@ create table public.expenses (
   -- 改成指向 profiles 后，PostgREST 才能识别并支持 join
   creator_id uuid not null references public.profiles(id) on delete set null,
   member_id uuid not null references public.profiles(id) on delete set null,
-  category_id uuid not null references public.categories(id),
+  category_id uuid references public.categories(id), -- 允许 NULL:MCP/可选分类时不强制归类
   amount numeric(10, 2) not null check (amount > 0 and amount <= 999999.99),
   spent_at timestamptz not null,
   note text check (char_length(note) <= 200),

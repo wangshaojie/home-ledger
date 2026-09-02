@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useExpenseStore } from '@/stores/expense'
 import { useCategoryStore } from '@/stores/category'
 import { usePaymentAccountStore } from '@/stores/paymentAccount'
@@ -302,12 +302,24 @@ function fmt(n: number) {
   return '¥ ' + Number(n).toFixed(2)
 }
 
-// 首次进入统计页时,如果 expense 还没拉过数据(从非首页直接进来),
-// 主动触发一次 load,否则用户会看到一片空白图表
+// 首次进入统计页 / 切换顶部 range 时,按统计口径重新拉数据
+// v2026-09-02 修复:之前只有 items.length === 0 才 load,
+// 切菜单时 store.items 已经有「今天/本周」数据,统计页想看「本月/去年」就空白
+// loadForStats 不依赖记账页 filter,不会污染记账页 state
+function loadForStats() {
+  // 'month' 走 SQL month 下界(精准)
+  // 'year' / 'lastYear' / 'beforeLastYear' / 'custom' 拉全量,在前端 inPeriod 过滤
+  const target: 'month' | 'all' = range.value === 'month' ? 'month' : 'all'
+  void store.loadForStats(target)
+}
+
 onMounted(() => {
-  if (!store.loading && store.items.length === 0) {
-    void store.load()
-  }
+  loadForStats()
+})
+
+// 切顶部 range 时重新拉
+watch(range, () => {
+  loadForStats()
 })
 </script>
 

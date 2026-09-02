@@ -272,6 +272,54 @@ function fmtDate(iso: string) {
   return new Date(iso).toISOString().slice(0, 10)
 }
 
+// ---------- AI 记账（MCP） ----------
+const mcpTab = ref('cursor')
+const mcpOpen = ref(['config'])
+const copiedKey = ref('')
+
+const mcpClients = [
+  {
+    key: 'cursor',
+    name: 'Cursor',
+    file: 'Windows：%USERPROFILE%\\.cursor\\mcp.json　·　macOS：~/.cursor/mcp.json',
+    tip: '已有其它 MCP 时把 home-ledger 节点合并进去，不要整文件覆盖。需要 Cursor 0.46+。',
+    json: `{\n  "mcpServers": {\n    "home-ledger": {\n      "url": "https://mcp.240730.xyz/api/mcp",\n      "headers": {\n        "Authorization": "Bearer 你的token"\n      }\n    }\n  }\n}`
+  },
+  {
+    key: 'claude',
+    name: 'Claude Desktop',
+    file: 'Windows：%APPDATA%\\Claude\\claude_desktop_config.json　·　macOS：~/Library/Application Support/Claude/claude_desktop_config.json',
+    tip: '格式多一个 "type": "http"。需要 Claude Desktop 1.0.63+。',
+    json: `{\n  "mcpServers": {\n    "home-ledger": {\n      "type": "http",\n      "url": "https://mcp.240730.xyz/api/mcp",\n      "headers": {\n        "Authorization": "Bearer 你的token"\n      }\n    }\n  }\n}`
+  },
+  {
+    key: 'other',
+    name: '其他客户端',
+    file: 'Mavis / Codex 等支持远程 HTTP MCP 的客户端',
+    tip: '在客户端里添加远程 MCP 服务器，填入以下端点与请求头。',
+    json: '端点：https://mcp.240730.xyz/api/mcp\n传输方式：HTTP（Streamable HTTP）\n请求头：Authorization: Bearer 你的token'
+  }
+]
+
+function openActivatePage() {
+  window.open('https://mcp.240730.xyz/activate', '_blank')
+}
+
+async function copyMcpJson(key: string) {
+  const c = mcpClients.find((x) => x.key === key)
+  if (!c) return
+  try {
+    await navigator.clipboard.writeText(c.json)
+    copiedKey.value = key
+    notify.success('配置已复制，粘贴到对应文件即可（记得把「你的token」换成授权页拿到的 token）')
+    setTimeout(() => {
+      copiedKey.value = ''
+    }, 2500)
+  } catch {
+    notify.error('复制失败，请手动选中复制')
+  }
+}
+
 async function logout() {
   try {
     await ElMessageBox.confirm(
@@ -556,6 +604,75 @@ async function wipeLocalData() {
       </el-button>
     </div>
 
+    <div class="section">
+      <div class="section-title"><el-icon><Connection /></el-icon>AI 记账（MCP）</div>
+      <p class="section-hint">
+        把「家庭记账」接入 AI 助手（Cursor / Claude Desktop / Mavis 等）。之后不用打开本应用，
+        直接对 AI 说一句「刚买了杯咖啡 28 块」，它就会自动帮你写入账本。
+      </p>
+
+      <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 6px">
+        <el-button type="primary" @click="openActivatePage">
+          <el-icon><Promotion /></el-icon>
+          <span style="margin-left: 4px">打开授权页</span>
+        </el-button>
+        <span class="hint" style="margin-left: 6px">在浏览器中打开 mcp.240730.xyz/activate，用你的登录邮箱完成授权</span>
+      </div>
+
+      <div class="step-list">
+        <div class="step-item">
+          <span class="step-no">1</span>
+          <span>在授权页用 <b>{{ auth.profile?.email || '本应用登录邮箱' }}</b> 接收验证码，起个设备名（如「我的笔记本」）</span>
+        </div>
+        <div class="step-item">
+          <span class="step-no">2</span>
+          <span>授权成功生成 64 位 token，点「复制 token」</span>
+        </div>
+        <div class="step-item">
+          <span class="step-no">3</span>
+          <span>在下方选择你的 AI 客户端，复制配置、粘贴进配置文件并保存，然后<b>完全退出并重启</b>客户端</span>
+        </div>
+      </div>
+
+      <el-collapse v-model="mcpOpen" style="margin-top: 4px">
+        <el-collapse-item name="config" title="配置模板（复制后粘贴到对应文件）">
+          <el-tabs v-model="mcpTab">
+            <el-tab-pane v-for="c in mcpClients" :key="c.key" :label="c.name" :name="c.key">
+              <div class="cfg-path">{{ c.file }}</div>
+              <p class="section-hint">{{ c.tip }}</p>
+              <el-button
+                size="small"
+                :type="copiedKey === c.key ? 'success' : 'primary'"
+                plain
+                @click="copyMcpJson(c.key)"
+              >
+                <el-icon><CopyDocument /></el-icon>
+                <span style="margin-left: 4px">{{ copiedKey === c.key ? '已复制' : '复制配置' }}</span>
+              </el-button>
+              <pre class="cfg-pre">{{ c.json }}</pre>
+            </el-tab-pane>
+          </el-tabs>
+        </el-collapse-item>
+
+        <el-collapse-item name="usage" title="试试对 AI 说">
+          <ul class="mcp-usage-list">
+            <li>「刚在瑞幸买了杯咖啡 28 块，帮我记上」</li>
+            <li>「看看最近 5 笔账单」</li>
+            <li>「删掉昨天那笔早餐」</li>
+          </ul>
+        </el-collapse-item>
+
+        <el-collapse-item name="faq" title="常见问题与安全">
+          <ul class="mcp-usage-list">
+            <li>token 有效期 30 天。过期后调用会提示 401，回授权页重新签发即可</li>
+            <li>每个 token 对应一个「设备」，可在授权页管理、吊销</li>
+            <li>AI 只能操作你所在家庭的账单，无法读取或修改其他家庭的数据</li>
+            <li>写操作有审计与限流（每分钟最多 30 笔），异常行为可追踪</li>
+          </ul>
+        </el-collapse-item>
+      </el-collapse>
+    </div>
+
     <el-dialog v-model="showAddCategory" title="新增分类" width="400px">
       <el-form label-position="top">
         <el-form-item label="分类名">
@@ -815,5 +932,61 @@ async function wipeLocalData() {
   background: #f1f2f4;
   padding: 2px 10px;
   border-radius: 999px;
+}
+
+/* ---------- AI 记账（MCP） ---------- */
+.step-list {
+  margin: 14px 0 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.step-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 14px;
+  color: var(--color-text);
+  line-height: 1.6;
+}
+.step-no {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.cfg-path {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  color: var(--color-text-soft);
+  margin: 0 0 6px;
+}
+.cfg-pre {
+  background: #f6f8fa;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #24292f;
+  overflow-x: auto;
+  margin: 10px 0 0;
+  white-space: pre;
+}
+.mcp-usage-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-text-soft);
+  font-size: 13px;
+  line-height: 2.1;
 }
 </style>
