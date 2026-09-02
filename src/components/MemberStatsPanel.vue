@@ -6,7 +6,7 @@
   - 点击柱子 → 跳列表并预填 memberIds
 -->
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { BarChart } from 'echarts/charts'
@@ -81,34 +81,25 @@ async function loadStats() {
 // 监听 expenseStore.revision（数据版本号）：任何筛选变化都会触发 store 的 load()
 // 成功后 revision++，记账/分摊/删除也会 revision++，这里随之聚合一次即可；
 // 不直接监听 filter 明细 + items，否则一次切换会触发两次聚合请求。
-// 首次启动：expense.load() 完成 revision 0→1 时 watch 也会触发 loadStats，
-// 所以不需要 onMounted(loadStats) —— 之前两者同时跑会双触发聚合请求。
 // 另监听家庭成员数量，新增成员后图表出现新柱子。
-// v2026-09-02 修复:切菜单回来图表空白
-//   之前只靠 watch(revision) 触发 loadStats,但当 MemberStatsPanel 被销毁再重建
-//   (切到统计页再切回记账页)时,revision 已经停在最新值,watch 不会再次触发,
-//   而 HomeView / App.vue 都不会在切回时再调 expense.load(),导致 loadStats 永远不跑
-// 修法:onMounted 主动调一次,首次启动由 isFirstWatch 标记抑制首次 watch
-//   防止双触发
-let isFirstWatch = true
+//
+// v2026-09-02 修复:首次进页面两次 loadStats
+//   旧实现 onMounted(loadStats) + watch([revision, members.length]) 同时跑,
+//   isFirstWatch 只抑制了 watch 同步初始化那次,members.length 0→N 异步到达
+//   时仍会触发第二次 watch → 两次 loadStats(loading 闪两次)。
+//   "切菜单回来"那条路径 home/stats 是不同路由,组件每次都重建,
+//   切回时 revision 已停在最新值,旧实现靠 onMounted 兜底。
+// 修法:watch 加 immediate:true 替代 onMounted,
+//   防抖 250ms 把"挂载时 immediate 触发 + members 异步到达"合并成一次请求。
 let statsTimer: ReturnType<typeof setTimeout> | null = null
 watch(
   [() => expenseStore.revision, () => familyStore.members.length],
   () => {
-    if (isFirstWatch) {
-      isFirstWatch = false
-      return
-    }
     if (statsTimer) clearTimeout(statsTimer)
     statsTimer = setTimeout(() => void loadStats(), 250)
-  }
+  },
+  { immediate: true }
 )
-
-onMounted(() => {
-  // 主动拉一次:覆盖"切菜单回来 revision 不变 → watch 不触发"的场景
-  // 首次启动时 isFirstWatch=true,这里主动 load;挂载后 watch 立即跑一次被抑制
-  void loadStats()
-})
 
 // 决定要不要退化为单图
 const onlyOneMember = computed(() => familyStore.members.length <= 1)

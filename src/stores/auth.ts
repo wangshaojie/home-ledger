@@ -109,30 +109,30 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * 邮箱+密码注册
+   * v2026-09-02 注册流程改版
+   *   原流程：邮箱 + 密码 → signUp → 验邮件 → Onboarding
+   *   新流程：邮箱 → signInWithOtp(shouldCreateUser:true) → 验邮件 → 设密码 → Onboarding
    *
-   * 流程：
-   *   1. 调用 supabase.auth.signUp，Supabase 会发验证邮件
-   *   2. signUp 不会自动登录（因为没 verified），返回的 session 是 null
-   *   3. 引导用户去 /verify-email 输入 OTP
-   *   4. verifyOtp 验证后自动登录
+   * 这里不发密码，只发邮件创建账号。
+   * 用 signInWithOtp + shouldCreateUser:true 而不是 signUp，是因为：
+   *   - signUp 默认要求 password，注册页不要密码字段后传空 password 会被 Supabase 拒
+   *   - signInWithOtp 流程下，Supabase 在用户点链接/输 OTP 时直接创建用户（不需密码）
+   *   - 密码由用户在 verifyOtp 之后去 /set-password 设置（走 updateUser 改密）
    *
-   * 注意：必须先在 Supabase Auth 后台关掉"Auto Confirm Email"才会真发验证邮件。
+   * 验证后用户有 session 但 email_verified 仍为 false，要等 setPassword 完成后
+   * 才标 true（注册才算完整完成）。
    */
-  async function signUp(email: string, password: string) {
-    const { data, error } = await supabase.auth.signUp({
+  async function signUp(email: string) {
+    const { error } = await supabase.auth.signInWithOtp({
       email,
-      password,
       options: {
+        shouldCreateUser: true,
         // 用户点邮件链接时的回调路径。verifyEmailView 会处理
-        emailRedirectTo: typeof window !== 'undefined' ? window.location.origin + '/#/verify-email?type=signup' : undefined
+        emailRedirectTo:
+          typeof window !== 'undefined' ? window.location.origin + '/#/verify-email?type=signup' : undefined
       }
     })
     if (error) return { ok: false, message: errText(error, '注册失败') }
-    if (data.session) {
-      session.value = data.session
-      user.value = data.user
-    }
     return { ok: true, message: '验证邮件已发送到 ' + email + '，请查收（10 分钟内有效）' }
   }
 
@@ -173,6 +173,10 @@ export const useAuthStore = defineStore('auth', () => {
   /**
    * @param remember 是否启用 30 天免登录（默认 true）
    * 登录成功时按该值写/清标记；不勾选则下次启动强制登出
+   *
+   * v2026-09-02 改：注册流程改版后，signup 路径下 email_verified 不再在 verifyOtp
+   * 之后置为 true（那时候用户还没设密码，注册未完成），改到 setPassword 完成后
+   * 才置。login 路径的兼容标记在 signInWithPassword 那边处理。
    */
   async function verifyOtp(email: string, token: string, remember = true) {
     const { data, error } = await supabase.auth.verifyOtp({
@@ -186,8 +190,10 @@ export const useAuthStore = defineStore('auth', () => {
     await refreshProfile()
     if (remember) enableRemember30Days()
     else disableRemember()
-    await markEmailVerified()
-    return { ok: true, message: '登录成功' }
+    // 注意：这里不调 markEmailVerified。
+    // signup 流程：用户在 /set-password 设完密码后才算真正完成注册，那边会标。
+    // login/forgot 流程：signInWithPassword 走的是另一条路径,有自己的兼容标记逻辑。
+    return { ok: true, message: '验证通过' }
   }
 
   /**

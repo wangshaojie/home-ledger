@@ -21,6 +21,16 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'blank' }
   },
   {
+    // v2026-09-02 注册流程改版：验证完邮箱进入,设完密码后跳 /onboarding
+    // 不挂 requiresVerified: 必须在 verified=true 之前进入(email_verified 在
+    // setPassword 完成后才置为 true)
+    // 不挂 requiresFamily: 设密码时还没有家庭
+    path: '/set-password',
+    name: 'set-password',
+    component: () => import('@/views/SetPasswordView.vue'),
+    meta: { layout: 'blank', requiresAuth: true }
+  },
+  {
     path: '/onboarding',
     name: 'onboarding',
     component: () => import('@/views/OnboardingFamilyView.vue'),
@@ -35,7 +45,13 @@ const routes: RouteRecordRaw[] = [
       { path: 'home', name: 'home', component: () => import('@/views/HomeView.vue') },
       { path: 'stats', name: 'stats', component: () => import('@/views/StatsView.vue') },
       { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
-      { path: 'accounts', name: 'accounts', component: () => import('@/views/AccountsView.vue') }
+      { path: 'accounts', name: 'accounts', component: () => import('@/views/AccountsView.vue') },
+      {
+        // v2026-09-02 从 SettingsView 拆出来
+        path: 'mcp',
+        name: 'mcp',
+        component: () => import('@/views/McpView.vue')
+      }
     ]
   },
   { path: '/:pathMatch(.*)*', redirect: '/home' }

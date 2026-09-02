@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
  * v2026-08-25 登录体系重构
+ * v2026-09-02 注册流程改版
  * 邮箱验证页：输入 6 位 OTP
  *  根据 query.type 决定后续跳转：
- *   - signup  → 验证通过后自动登录 → /onboarding（建家庭）
+ *   - signup  → 验证通过后自动登录 → /set-password（设密码）→ /onboarding（建家庭）
  *   - forgot  → 验证通过后自动登录 → 提示去「设置」改密
  *   - login   → 验证通过后自动登录 → 主页
  *
@@ -42,7 +43,7 @@ const title = computed(() => {
 const subtitle = computed(() => {
   if (type === 'forgot') return '请输入发送到邮箱的 6 位验证码，验证后请到「设置」修改密码'
   if (type === 'login') return '请输入发送到邮箱的 6 位验证码以完成登录'
-  return '请输入发送到邮箱的 6 位验证码以激活账号'
+  return '请输入发送到邮箱的 6 位验证码，验证后设置密码即可激活账号'
 })
 
 // forgot 场景下 signup 阶段用户已填过邮箱，不让改（防填错）
@@ -80,6 +81,13 @@ async function verify() {
   const r = await auth.verifyOtp(email.value, code.value)
   verifying.value = false
   if (r.ok) {
+    if (type === 'signup') {
+      // v2026-09-02 注册流程改版：验完邮箱跳设密码页,
+      // 设完密码后由 SetPasswordView 跳 /onboarding
+      // （保持登录态,SetPasswordView 走 updateUser 设密 + markEmailVerified）
+      router.replace({ name: 'set-password' })
+      return
+    }
     // 三个 type 都走同一条路：验证通过自动登录
     const p = await auth.ensureProfile()
     if (type === 'forgot') {
@@ -98,7 +106,7 @@ async function verify() {
         else router.replace({ name: 'onboarding' })
       }
     } else {
-      // signup / login：按家庭状态分流
+      // login：按家庭状态分流
       if (p?.family_id) router.replace({ name: 'home' })
       else router.replace({ name: 'onboarding' })
     }

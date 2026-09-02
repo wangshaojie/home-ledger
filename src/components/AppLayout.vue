@@ -14,6 +14,7 @@ const navItems = [
   { name: 'home', label: '记账', icon: 'Notebook' },
   { name: 'stats', label: '统计', icon: 'DataLine' },
   { name: 'accounts', label: '支付账户', icon: 'CreditCard' },
+  { name: 'mcp', label: 'AI 接入', icon: 'Connection' },
   { name: 'settings', label: '设置', icon: 'Setting' }
 ]
 
@@ -21,6 +22,7 @@ const active = computed(() => {
   if (route.name === 'home') return 'home'
   if (route.name === 'stats') return 'stats'
   if (route.name === 'accounts') return 'accounts'
+  if (route.name === 'mcp') return 'mcp'
   if (route.name === 'settings') return 'settings'
   return ''
 })
