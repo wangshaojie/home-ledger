@@ -90,14 +90,20 @@ async function loadStats() {
 //   "记账/分摊/删除后图也要重算"通过 HomeView 主动调 reload() 即可,
 //   watch 不再依赖 revision。
 //
-// 修法:watch 只听 filter(用户主动改的) + members.length(新成员柱子),
+// 修法:watch 只听"会影响图表聚合口径"的依赖 + members.length(新成员柱子),
 //   记账/分摊/编辑/删除由 HomeView 在成功后调 statsPanelRef.reload()。
+//
+// ⚠️ 重要:filter.memberIds 不在依赖里!
+//   点击柱子"下钻"时 onBarClick 会写 expenseStore.filter.memberIds,
+//   这只是给下方账单列表预填筛选条件,不是要让图重算——
+//   否则图会立刻退化成"只剩那一根柱子",体验就坏了。
+//   列表那边通过 store.items + filter 的 computed 自然会跟着刷新,不需要图也重算。
 let statsTimer: ReturnType<typeof setTimeout> | null = null
 watch(
   [
     () => expenseStore.filter.range,
     () => expenseStore.filter.categoryIds.length,
-    () => expenseStore.filter.memberIds.length,
+    // 故意不监听 filter.memberIds.length —— 见上方注释
     () => expenseStore.filter.minAmount,
     () => expenseStore.filter.maxAmount,
     () => familyStore.members.length
