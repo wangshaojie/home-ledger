@@ -17,11 +17,15 @@
 --   - mcp_device_tokens: 设备 + token 哈希
 --   - mcp_audit_log:     所有 MCP 调用的审计日志
 --
--- 四个 RPC:
---   - issue_mcp_token(device_name):            已登录用户给"自己"签发新 token
+-- RPC 一览:
+--   - issue_mcp_token(device_name):             已登录用户给"自己"签发新 token
 --   - verify_mcp_token(p_token):                SECURITY DEFINER,验 token 返 user_id
 --   - revoke_mcp_device(p_device_id):           用户吊销自己的某台设备
+--   - mcp_check_rate_limit(...):                MCP 限流辅助
 --   - mcp_add_expense(...):                     写账专用 RPC(走 token,不直连表)
+--   - mcp_list_recent(...):                     查最近账单
+--   - mcp_delete_expense(...):                  软删账单
+--   - mcp_list_categories(...):                 列当前家庭支出分类(记账前取 category_id)
 -- ========================================
 
 -- ===========================
@@ -548,6 +552,59 @@ $$;
 grant execute on function public.mcp_delete_expense(text, uuid) to anon, authenticated;
 
 -- ===========================
+-- 11. mcp_list_categories(p_token)
+--     列当前用户家庭的全部支出分类(供 AI 记账前取 category_id,
+--     避免 AI 因拿不到 UUID 清单而空着分类)
+-- ========================================
+drop function if exists public.mcp_list_categories(text);
+create function public.mcp_list_categories(p_token text)
+returns table (
+  id uuid,
+  name text,
+  icon text,
+  is_default boolean,
+  sort_order int
+)
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_user uuid;
+  v_device_id uuid;
+  v_device_name text;
+  v_family_id uuid;
+begin
+  select t.user_id, t.device_id, t.device_name
+    into v_user, v_device_id, v_device_name
+  from public.verify_mcp_token(p_token) t;
+
+  -- 读操作限流
+  if not public.mcp_check_rate_limit(v_user, 'list_categories') then
+    raise exception '请求过于频繁' using errcode = '23514';
+  end if;
+
+  select p.family_id into v_family_id from public.profiles p where p.id = v_user;
+  if v_family_id is null then
+    raise exception '当前用户未加入任何家庭' using errcode = '23514';
+  end if;
+
+  return query
+  select c.id, c.name, c.icon, c.is_default, c.sort_order
+  from public.categories c
+  where c.family_id = v_family_id
+  order by c.sort_order, c.created_at;
+
+  insert into public.mcp_audit_log(user_id, device_id, tool_name, action, params, result)
+  values (v_user, v_device_id, 'mcp_list_categories', 'list_categories',
+          jsonb_build_object('device', v_device_name),
+          'ok');
+end;
+$$;
+
+grant execute on function public.mcp_list_categories(text) to anon, authenticated;
+
+-- ===========================
 -- 10. 验证输出
 -- ========================================
 do $$
@@ -564,8 +621,9 @@ begin
   from pg_proc
   where pronamespace = 'public'::regnamespace
     and proname in ('issue_mcp_token','verify_mcp_token','revoke_mcp_device',
-                    'mcp_check_rate_limit','mcp_add_expense','mcp_list_recent','mcp_delete_expense');
-  raise notice 'mcp 相关 RPC 数量: % (期望 7)', v_rpc_count;
+                    'mcp_check_rate_limit','mcp_add_expense','mcp_list_recent','mcp_delete_expense',
+                    'mcp_list_categories');
+  raise notice 'mcp 相关 RPC 数量: % (期望 8)', v_rpc_count;
 
   raise notice '--- 验证 grant ---';
   raise notice 'issue_mcp_token: anon 应无,authenticated 应有';

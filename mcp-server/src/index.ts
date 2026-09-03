@@ -1,5 +1,5 @@
 // MCP server 主文件
-// 暴露 4 个工具给 AI agent:home_ledger_add_expense / list_recent / delete_expense / whoami
+// 暴露 5 个工具给 AI agent:home_ledger_add_expense / list_recent / delete_expense / list_categories / whoami
 // 启动时:1) 读 token  2) 调 verify_mcp_token 确认有效  3) 起 stdio transport
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -9,7 +9,13 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { getActiveToken, listTokens } from './credentials.js';
-import { addExpense, deleteExpense, listRecent, verifyToken } from './supabase.js';
+import {
+  addExpense,
+  deleteExpense,
+  listCategories,
+  listRecent,
+  verifyToken,
+} from './supabase.js';
 import { resolveConfig } from './config.js';
 import { hostname } from 'node:os';
 
@@ -37,8 +43,10 @@ function createServer(): Server {
       {
         name: 'home_ledger_add_expense',
         description:
-          '在家庭记账中记一笔支出。会自动归属到当前用户所在家庭。' +
-          '调用前请确认:金额、分类(可选)、账户(可选)、日期(默认今天)、备注(可选)。' +
+          '在家庭记账中记一笔支出,自动归属当前用户所在家庭。' +
+          '需要带分类时:先调 home_ledger_list_categories 拿到 category_id,不要凭空编造。' +
+          '能判断出类别(如早餐/午餐/晚餐/外卖→餐饮;买菜→商超购物)就尽量带上分类。' +
+          '账户默认不传(自动用微信支付);日期默认不传(记当前时刻),仅补记过去某天才填。' +
           '返回:expense_id(可后续用 home_ledger_delete_expense 删除)。',
         inputSchema: {
           type: 'object',
@@ -53,11 +61,13 @@ function createServer(): Server {
             },
             category_id: {
               type: 'string',
-              description: '分类 ID(可选;不传则不归类)',
+              description:
+                '分类 ID(可选;必须来自 home_ledger_list_categories 返回的 id;' +
+                '能推断出消费类别(如早/午/晚餐→餐饮)就带上,不传则不归类)',
             },
             account_id: {
               type: 'string',
-              description: '支付账户 ID(可选;不传则不绑账户)',
+              description: '支付账户 ID(可选;不传则默认微信支付,家庭内无同名账户才留空)',
             },
             spent_at: {
               type: 'string',
@@ -67,6 +77,16 @@ function createServer(): Server {
             },
           },
           required: ['amount'],
+        },
+      },
+      {
+        name: 'home_ledger_list_categories',
+        description:
+          '列出当前用户家庭的全部支出分类(含图标、名称和分类 ID)。' +
+          '【记账前先调它】获取 category_id,再调 home_ledger_add_expense 时带上分类。',
+        inputSchema: {
+          type: 'object',
+          properties: {},
         },
       },
       {
@@ -239,6 +259,22 @@ function createServer(): Server {
         }
         await deleteExpense(stored.token, a.expense_id);
         return { content: [{ type: 'text', text: `✅ 已删除 expense ${a.expense_id}` }] };
+      }
+
+      if (name === 'home_ledger_list_categories') {
+        const cats = await listCategories(stored.token);
+        if (cats.length === 0) {
+          return { content: [{ type: 'text', text: '当前家庭没有任何分类。' }] };
+        }
+        const lines = cats.map((c) => `- ${c.icon} ${c.name} | id=${c.id}`);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `当前家庭分类(${cats.length}):\n${lines.join('\n')}`,
+            },
+          ],
+        };
       }
 
       return {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, session } from 'electron'
 import path from 'node:path'
 import { loadMainProcessEnv } from './loadEnv'
 
@@ -95,6 +95,31 @@ app.on('second-instance', () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+// 退出前强制把 Chromium DOMStorage（localStorage，含 supabase session / refresh_token）
+// 刷盘。否则运行期间 autoRefresh 换的新 refresh_token 可能只留在内存缓存里，
+// 下次启动拿已被服务端轮换掉的旧 token 去 refresh → 判 refresh_token_already_used
+// → 整个 session family 被吊销 → 30 天免登录失效（每次隔天都要重新登录）。
+let flushingBeforeQuit = false
+app.on('before-quit', (event) => {
+  if (flushingBeforeQuit || !app.isReady()) return
+  flushingBeforeQuit = true
+  event.preventDefault()
+  try {
+    // flushStorageData 的返回值在不同 Electron 版本签名不一致
+    // （有的返回 Promise，有的返回 void 仅支持 callback），这里两种都兼容，
+    // 且给同步返回兜底 800ms 后强制退出，避免卡住退出流程
+    const flushResult = session.defaultSession.flushStorageData()
+    const done = () => app.quit()
+    if (flushResult && typeof (flushResult as Promise<void>).then === 'function') {
+      ;(flushResult as Promise<void>).catch(() => {}).finally(done)
+    } else {
+      setTimeout(done, 800)
+    }
+  } catch {
+    app.quit()
+  }
 })
 
 // ========================================

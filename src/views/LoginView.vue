@@ -5,7 +5,7 @@
  * - 样式复用 main.css 的 .dark-page 公共设计系统
  * - 保留全部功能(邮箱/密码/记住/忘密/注册/免责)
  */
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { notify } from '@/lib/notify'
 import { useAuthStore } from '@/stores/auth'
@@ -83,6 +83,18 @@ async function submit() {
     }
   }
 }
+
+// 启动时网络未就绪导致掉登录的场景：auth store 后台恢复会话成功后，
+// 用户若停在登录页则自动进入应用，无需重新输入密码
+watch(
+  () => auth.isAuthenticated,
+  async (authed) => {
+    if (!authed) return
+    const p = await auth.ensureProfile()
+    if (p?.family_id) router.push({ name: 'home' })
+    else router.push({ name: 'onboarding' })
+  }
+)
 
 function goRegister() {
   router.push({ name: 'register' })

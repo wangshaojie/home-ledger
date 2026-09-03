@@ -27,6 +27,11 @@ interface Profile {
 
 const PROFILE_CACHE_KEY = 'homeledger_profile_cache'
 
+/** supabase-js 网络类错误（fetch 失败）：本地 session 不会被清，可稍后重试 */
+function isRetryableNetworkError(error: any): boolean {
+  return error?.name === 'AuthRetryableFetchError' || error?.status === 0
+}
+
 export const useAuthStore = defineStore('auth', () => {
   const initialized = ref(false)
   const session = ref<Session | null>(null)
@@ -60,12 +65,27 @@ export const useAuthStore = defineStore('auth', () => {
     // - 30 天免登录标记在入口处手动检查：过期就清 session，否则走 supabase 默认 refresh 链
     if (isRememberExpired()) {
       try {
-        await supabase.auth.signOut()
+        // scope:'local'：免登录标记过期只登出本机。默认 'global' 会吊销该用户
+        // 所有设备的 session，导致多端互相挤下线
+        await supabase.auth.signOut({ scope: 'local' })
       } catch {}
       // 清完后再 getSession() 一次，确保内存里没有残留 session
     }
 
-    const { data } = await supabase.auth.getSession()
+    const { data, error } = await supabase.auth.getSession()
+    if (error) {
+      // 诊断日志：区分两类失败（下次复现时看 DevTools console 即可定位根因）
+      // - 网络类（AuthRetryableFetchError）：本地 session 仍在，等网络恢复后后台重试
+      // - 服务端拒绝（refresh_token_already_used / refresh_token_not_found /
+      //   session_expired）：session 已被 supabase 清除，只能重新登录。
+      //   常见诱因：多端登录同一账号互相挤掉、改密码 RPC revoke 了全部 session、
+      //   上次退出时新 refresh_token 未刷盘（electron/main.ts before-quit 已加刷盘）
+      const code = (error as any).code || (error as any).name || 'unknown'
+      console.error(`[auth] 启动恢复会话失败: ${code} - ${error.message}`)
+      if (isRetryableNetworkError(error)) {
+        scheduleSessionRecovery()
+      }
+    }
     if (data.session) {
       session.value = data.session
       user.value = data.session.user
@@ -82,6 +102,36 @@ export const useAuthStore = defineStore('auth', () => {
         cacheProfile(null)
       }
     })
+  }
+
+  /**
+   * 启动时网络未就绪导致 getSession 恢复失败 → 等网络恢复后后台重试。
+   * 注意 supabase-js 内部对同一 refresh_token 的 refresh 失败有 60s 冷却
+   * （REFRESH_FAILURE_COOLDOWN_MS），冷却期内重试会直接命中缓存失败，
+   * 所以首次重试必须等 65s+。
+   */
+  let recoveryAttempts = 0
+  function scheduleSessionRecovery() {
+    if (recoveryAttempts >= 5) return
+    recoveryAttempts++
+    const retry = async () => {
+      const { data, error } = await supabase.auth.getSession()
+      if (data.session) {
+        recoveryAttempts = 0
+        session.value = data.session
+        user.value = data.session.user
+        await refreshProfile()
+        return
+      }
+      if (error && isRetryableNetworkError(error)) {
+        scheduleSessionRecovery()
+      }
+    }
+    if (navigator.onLine) {
+      setTimeout(retry, 65_000)
+    } else {
+      window.addEventListener('online', () => setTimeout(retry, 5_000), { once: true })
+    }
   }
 
   async function refreshProfile() {
@@ -338,7 +388,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout() {
-    await supabase.auth.signOut()
+    // scope:'local'：只退出本机。默认 'global' 会让服务端吊销该用户全部
+    // session，其他已登录设备会连带被登出（多端互挤的来源之一）
+    await supabase.auth.signOut({ scope: 'local' })
     disableRemember()
     session.value = null
     user.value = null
@@ -353,7 +405,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function wipeAllLocalData(): Promise<{ ok: boolean; message: string }> {
     try {
       try {
-        await supabase.auth.signOut()
+        // scope:'local'：清除本地数据只影响本机，不吊销其他设备的 session
+        await supabase.auth.signOut({ scope: 'local' })
       } catch {}
       const keysToDelete: string[] = []
       for (let i = 0; i < localStorage.length; i++) {

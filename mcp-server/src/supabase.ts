@@ -137,3 +137,24 @@ export async function deleteExpense(token: string, expenseId: string): Promise<v
     throw new Error(`删除失败: ${error.message}`);
   }
 }
+
+// ===========================
+// 6. mcp_list_categories
+//    记账前取家庭分类清单(category_id / 名称 / 图标)
+// ===========================
+export interface CategoryItem {
+  id: string;
+  name: string;
+  icon: string;
+  is_default: boolean;
+  sort_order: number;
+}
+
+export async function listCategories(token: string): Promise<CategoryItem[]> {
+  const c = await getClient();
+  const { data, error } = await c.rpc('mcp_list_categories', { p_token: token });
+  if (error) {
+    throw new Error(`查询分类失败: ${error.message}`);
+  }
+  return (data ?? []) as CategoryItem[];
+}
