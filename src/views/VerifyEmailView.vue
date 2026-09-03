@@ -2,6 +2,8 @@
 /**
  * v2026-08-25 登录体系重构
  * v2026-09-02 注册流程改版
+ * v2026-09-03 视觉对齐 dark-page 设计系统
+ *
  * 邮箱验证页：输入 6 位 OTP
  *  根据 query.type 决定后续跳转：
  *   - signup  → 验证通过后自动登录 → /set-password（设密码）→ /onboarding（建家庭）
@@ -9,10 +11,8 @@
  *   - login   → 验证通过后自动登录 → 主页
  *
  * forgot 实现说明：复用 signInWithOtp / verifyOtp（Supabase 自带流程，未登录态合法）。
- * 不用 password_reset_rpc 那套是因为 RPC 强制要求已登录（auth.uid() 校验），
- * 未登录态进 forgot 流程就是死循环。验证后用户在「设置」里走 OTP 改密流程改密即可。
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { notify } from '@/lib/notify'
@@ -30,6 +30,8 @@ const sending = ref(false)
 const verifying = ref(false)
 const countdown = ref(0)
 const codeSent = ref(false)
+const cardVisible = ref(false)
+const shake = ref(false)
 
 const emailValid = computed(() => /^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(email.value))
 const canSend = computed(() => emailValid.value && countdown.value === 0 && !sending.value)
@@ -49,15 +51,50 @@ const subtitle = computed(() => {
 // forgot 场景下 signup 阶段用户已填过邮箱，不让改（防填错）
 const emailEditable = computed(() => type === 'forgot')
 
+const reduceMotion = ref(false)
+let mq: MediaQueryList | null = null
+function onMqChange(e: MediaQueryListEvent) {
+  reduceMotion.value = e.matches
+}
 onMounted(() => {
-  // 任何 type 都允许未登录进入
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    reduceMotion.value = mq.matches
+    mq.addEventListener('change', onMqChange)
+  }
+  requestAnimationFrame(() => {
+    cardVisible.value = true
+  })
 })
+onBeforeUnmount(() => {
+  mq?.removeEventListener('change', onMqChange)
+  if (countdownTimer) clearInterval(countdownTimer)
+})
+
+let countdownTimer: ReturnType<typeof setInterval> | null = null
+
+function triggerShake() {
+  if (reduceMotion.value) return
+  shake.value = false
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      shake.value = true
+    })
+  })
+  setTimeout(() => {
+    shake.value = false
+  }, 600)
+}
 
 async function startCountdown() {
   countdown.value = 60
-  const t = setInterval(() => {
+  if (countdownTimer) clearInterval(countdownTimer)
+  countdownTimer = setInterval(() => {
     countdown.value--
-    if (countdown.value <= 0) clearInterval(t)
+    if (countdown.value <= 0 && countdownTimer) {
+      clearInterval(countdownTimer)
+      countdownTimer = null
+    }
   }, 1000)
 }
 
@@ -72,26 +109,25 @@ async function sendCode() {
     startCountdown()
   } else {
     notify.error(r.message)
+    triggerShake()
   }
 }
 
 async function verify() {
-  if (!canVerify.value) return
+  if (!canVerify.value) {
+    triggerShake()
+    return
+  }
   verifying.value = true
   const r = await auth.verifyOtp(email.value, code.value)
   verifying.value = false
   if (r.ok) {
     if (type === 'signup') {
-      // v2026-09-02 注册流程改版：验完邮箱跳设密码页,
-      // 设完密码后由 SetPasswordView 跳 /onboarding
-      // （保持登录态,SetPasswordView 走 updateUser 设密 + markEmailVerified）
       router.replace({ name: 'set-password' })
       return
     }
-    // 三个 type 都走同一条路：验证通过自动登录
     const p = await auth.ensureProfile()
     if (type === 'forgot') {
-      // forgot：登录成功 → 弹窗提示去设置改密
       notify.success('验证通过，请到「设置」修改密码')
       try {
         await ElMessageBox.alert(
@@ -101,17 +137,16 @@ async function verify() {
         )
         router.replace({ name: 'settings' })
       } catch {
-        // 用户关掉弹窗
         if (p?.family_id) router.replace({ name: 'home' })
         else router.replace({ name: 'onboarding' })
       }
     } else {
-      // login：按家庭状态分流
       if (p?.family_id) router.replace({ name: 'home' })
       else router.replace({ name: 'onboarding' })
     }
   } else {
     notify.error(r.message)
+    triggerShake()
   }
 }
 
@@ -122,133 +157,144 @@ function back() {
 </script>
 
 <template>
-  <div class="verify-page">
-    <div class="verify-card">
-      <div class="verify-header">
-        <div class="logo">✉️</div>
-        <h1>{{ title }}</h1>
+  <div class="dark-page verify-page">
+    <div class="bg-layer" aria-hidden="true">
+      <div class="bg-grid"></div>
+      <div class="bg-orb bg-orb--orange"></div>
+      <div class="bg-orb bg-orb--purple"></div>
+      <div class="bg-orb bg-orb--cyan"></div>
+      <div class="bg-noise"></div>
+    </div>
+
+    <main
+      class="glass-card"
+      :class="{ 'is-visible': cardVisible, 'is-shake': shake }"
+      role="main"
+    >
+      <div class="card-border" aria-hidden="true"></div>
+      <div class="card-glow" aria-hidden="true"></div>
+
+      <div class="page-header">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="30" height="30" fill="none">
+            <defs>
+              <linearGradient id="verify-logo-grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#fff" stop-opacity="0.95" />
+                <stop offset="1" stop-color="#fff" stop-opacity="0.75" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M5 9 L27 9 C28.1 9 29 9.9 29 11 L29 23 C29 24.1 28.1 25 27 25 L5 25 C3.9 25 3 24.1 3 23 L3 11 C3 9.9 3.9 9 5 9 Z"
+              fill="url(#verify-logo-grad)"
+            />
+            <path
+              d="M5 11 L16 19 L27 11"
+              stroke="rgba(245,108,44,0.55)"
+              stroke-width="2"
+              fill="none"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <circle cx="16" cy="17" r="2.4" fill="#fff" stroke="rgba(245,108,44,0.7)" stroke-width="1.4" />
+          </svg>
+          <div class="logo-shine-bar" aria-hidden="true"></div>
+        </div>
+        <h1 class="title">
+          <span class="title-cn">{{ title }}</span>
+          <span class="title-en">VERIFY EMAIL</span>
+        </h1>
         <p class="subtitle">{{ subtitle }}</p>
       </div>
 
-      <el-form @submit.prevent="verify" label-position="top">
-        <el-form-item label="邮箱">
-          <el-input
-            v-model="email"
-            :disabled="!emailEditable"
-            placeholder="请输入邮箱"
-            size="large"
-          />
-        </el-form-item>
+      <form class="page-form" @submit.prevent="verify" novalidate>
+        <div class="field" :class="{ 'is-filled': email }">
+          <label for="verify-email" class="field-label">邮箱</label>
+          <div class="field-input-wrap">
+            <span class="field-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <path d="M3 7l9 6 9-6" />
+              </svg>
+            </span>
+            <input
+              id="verify-email"
+              v-model="email"
+              type="email"
+              class="field-input"
+              placeholder="you@example.com"
+              autocomplete="email"
+              spellcheck="false"
+              :disabled="submitting || !emailEditable"
+            />
+          </div>
+        </div>
 
-        <el-form-item label="验证码">
+        <div class="field" :class="{ 'is-filled': code }">
+          <label for="verify-code" class="field-label">验证码</label>
           <div class="code-row">
-            <el-input v-model="code" placeholder="6 位数字" maxlength="6" size="large" />
-            <el-button size="large" :disabled="!canSend" :loading="sending" @click="sendCode">
-              {{ countdown > 0 ? `${countdown}s 后重发` : codeSent ? '重新发送' : '发送验证码' }}
-            </el-button>
+            <div class="field-input-wrap">
+              <span class="field-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3 L19 7 L19 12 C19 16.4 15.9 20 12 21 C8.1 20 5 16.4 5 12 L5 7 Z" />
+                  <path d="M9 12.5 L11 14.5 L15.5 10" />
+                </svg>
+              </span>
+              <input
+                id="verify-code"
+                v-model="code"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                class="field-input"
+                placeholder="6 位数字"
+                maxlength="6"
+                autocomplete="one-time-code"
+                :disabled="verifying"
+                @keyup.enter="verify"
+              />
+            </div>
+            <button
+              type="button"
+              class="code-send-btn"
+              :disabled="!canSend"
+              @click="sendCode"
+            >
+              <span v-if="sending" class="spinner" aria-hidden="true"></span>
+              <template v-else>
+                {{ countdown > 0 ? `${countdown}s 后重发` : codeSent ? '重新发送' : '发送验证码' }}
+              </template>
+            </button>
           </div>
-          <div v-if="codeSent" class="hint">
-            验证码已发到 <b>{{ email }}</b>（10 分钟内有效，请检查垃圾邮件夹）
+          <div v-if="codeSent" class="info-banner">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <span>验证码已发到 <b>{{ email }}</b>（10 分钟内有效，请检查垃圾邮件夹）</span>
           </div>
-        </el-form-item>
+        </div>
 
-        <el-button
-          type="primary"
-          size="large"
+        <button
+          type="submit"
           class="submit-btn"
+          :class="{ 'is-loading': verifying, 'is-disabled': !canVerify }"
           :disabled="!canVerify"
-          :loading="verifying"
-          @click="verify"
+          :aria-busy="verifying"
         >
-          验证
-        </el-button>
+          <span class="submit-shine" aria-hidden="true"></span>
+          <span class="submit-text">
+            <template v-if="verifying">
+              <span class="spinner" aria-hidden="true"></span>
+              验证中…
+            </template>
+            <template v-else>验 证</template>
+          </span>
+        </button>
 
         <div class="bottom-tip">
-          <el-link type="primary" :underline="'never'" @click="back">返回上一步</el-link>
+          <a class="link" href="#" tabindex="0" @click.prevent="back">返回上一步</a>
         </div>
-      </el-form>
-    </div>
+      </form>
+    </main>
   </div>
 </template>
-
-<style scoped>
-.verify-page {
-  height: 100vh;
-  width: 100vw;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #fff3ec 0%, #f5f5f7 100%);
-}
-.verify-card {
-  width: 440px;
-  padding: 40px;
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.06);
-}
-.verify-header {
-  text-align: center;
-  margin-bottom: 24px;
-}
-.logo {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 14px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #ff8f4d 0%, #f56c2c 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-  box-shadow: 0 8px 20px rgba(245, 108, 44, 0.35);
-}
-.verify-header h1 {
-  font-size: 24px;
-  margin: 0 0 4px;
-  color: var(--color-text);
-  letter-spacing: 1px;
-}
-.subtitle {
-  color: var(--color-text-soft);
-  font-size: 13px;
-  margin: 0;
-}
-.code-row {
-  display: flex;
-  gap: 10px;
-  width: 100%;
-}
-.code-row .el-input {
-  flex: 1;
-}
-.hint {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
-}
-.submit-btn {
-  width: 100%;
-  background-image: linear-gradient(135deg, #ff8f4d 0%, #f56c2c 100%);
-  border: none;
-  border-radius: 12px;
-  box-shadow: var(--shadow-btn);
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-.submit-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(245, 108, 44, 0.4);
-}
-.submit-btn.is-disabled {
-  background-image: none;
-  background-color: var(--el-color-primary-light-7);
-  color: var(--el-color-primary);
-}
-.bottom-tip {
-  text-align: center;
-  font-size: 13px;
-  color: #909399;
-  margin-top: 16px;
-}
-</style>

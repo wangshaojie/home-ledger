@@ -193,6 +193,7 @@ async function copyAutoConfigPrompt() {
 </template>
 
 <style scoped>
+/* v2026-09-03 质感升级 */
 .mcp {
   max-width: 1200px;
   margin: 0 auto;
@@ -203,92 +204,204 @@ async function copyAutoConfigPrompt() {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 12px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 .page-title {
   font-size: 26px;
   font-weight: 700;
   margin: 0 0 4px;
   letter-spacing: -0.3px;
+  background: linear-gradient(135deg, #1f2329 0%, #4a5160 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
-.page-sub {
-  color: var(--color-text-soft);
-  font-size: 13px;
-  margin: 0;
-}
+.page-sub { color: var(--color-text-soft); font-size: 13px; margin: 0; }
 
 .section {
+  position: relative;
   background: #fff;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 24px 28px;
-  box-shadow: var(--shadow-card);
+  padding: 28px 32px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 18px rgba(16, 24, 40, 0.05);
   margin-bottom: 16px;
+  transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.section:hover {
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 14px 32px rgba(16, 24, 40, 0.08);
 }
 .section-hint {
   color: var(--color-text-soft);
   font-size: 13px;
-  margin: 0 0 12px;
-  line-height: 1.5;
+  margin: 0 0 14px;
+  line-height: 1.6;
 }
-.hint {
-  color: var(--color-text-soft);
-  font-size: 12px;
-  margin-top: 4px;
+.hint { color: var(--color-text-soft); font-size: 12px; margin-top: 4px; }
+
+.mcp :deep(.el-button--primary) {
+  background: linear-gradient(135deg, #ff8f4d, #f56c2c) !important;
+  border: none !important;
+  box-shadow: 0 4px 12px -2px rgba(245, 108, 44, 0.4) !important;
+  border-radius: 10px !important;
+  padding: 10px 18px !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.mcp :deep(.el-button--primary:hover) {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 8px 18px -2px rgba(245, 108, 44, 0.5) !important;
+}
+.mcp :deep(.el-button--primary.is-plain) {
+  background: rgba(255, 255, 255, 0.6) !important;
+  border: 1px solid var(--color-border-strong) !important;
+  color: var(--color-primary) !important;
+  box-shadow: none !important;
+}
+.mcp :deep(.el-button--primary.is-plain:hover) {
+  background: var(--color-primary-soft) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(245, 108, 44, 0.08) !important;
 }
 
 .step-list {
-  margin: 14px 0 2px;
+  margin: 18px 0 4px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 .step-item {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: flex-start;
   font-size: 14px;
   color: var(--color-text);
   line-height: 1.6;
+  padding: 12px 14px;
+  background: linear-gradient(90deg, rgba(245, 108, 44, 0.04) 0%, transparent 100%);
+  border-radius: 10px;
+  border: 1px solid rgba(245, 108, 44, 0.1);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.step-item:hover {
+  background: linear-gradient(90deg, rgba(245, 108, 44, 0.08) 0%, rgba(245, 108, 44, 0.02) 100%);
+  border-color: rgba(245, 108, 44, 0.2);
+  transform: translateX(2px);
 }
 .step-no {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: var(--color-primary-soft);
+  background: linear-gradient(135deg, var(--color-primary-soft) 0%, #ffe2d0 100%);
   color: var(--color-primary);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 1px;
+  box-shadow: inset 0 0 0 1px rgba(245, 108, 44, 0.18), 0 2px 6px -1px rgba(245, 108, 44, 0.25);
 }
 .cfg-path {
   font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
   font-size: 12px;
   color: var(--color-text-soft);
   margin: 0 0 6px;
+  padding: 6px 10px;
+  background: rgba(79, 124, 255, 0.05);
+  border-left: 3px solid var(--color-blue);
+  border-radius: 4px;
 }
 .cfg-pre {
-  background: #f6f8fa;
+  background: linear-gradient(180deg, #f6f8fa 0%, #eef0f3 100%);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 12px 14px;
+  border-radius: 10px;
+  padding: 14px 16px;
   font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
   font-size: 12px;
   line-height: 1.7;
   color: #24292f;
   overflow-x: auto;
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   white-space: pre;
+  position: relative;
+}
+.cfg-pre::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(245, 108, 44, 0.3) 50%, transparent 100%);
 }
 .mcp-usage-list {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 22px;
   color: var(--color-text-soft);
   font-size: 13px;
   line-height: 2.1;
+}
+.mcp-usage-list li {
+  position: relative;
+  padding-left: 4px;
+}
+.mcp-usage-list li::marker {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.mcp :deep(.el-collapse) {
+  border: none !important;
+  margin-top: 8px;
+}
+.mcp :deep(.el-collapse-item__header) {
+  background: rgba(245, 108, 44, 0.03) !important;
+  border: 1px solid rgba(245, 108, 44, 0.1) !important;
+  border-radius: 10px !important;
+  margin-bottom: 8px !important;
+  padding: 0 16px !important;
+  height: 48px !important;
+  font-weight: 600 !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.mcp :deep(.el-collapse-item__header:hover) {
+  background: rgba(245, 108, 44, 0.06) !important;
+  border-color: rgba(245, 108, 44, 0.2) !important;
+}
+.mcp :deep(.el-collapse-item__wrap) {
+  border: none !important;
+}
+.mcp :deep(.el-collapse-item__content) {
+  padding: 4px 4px 16px !important;
+}
+
+.mcp :deep(.el-tabs__nav-wrap)::after { background: var(--color-border) !important; }
+.mcp :deep(.el-tabs__item) {
+  font-weight: 500 !important;
+  color: var(--color-text-soft) !important;
+  transition: all 0.2s !important;
+}
+.mcp :deep(.el-tabs__item:hover) { color: var(--color-primary) !important; }
+.mcp :deep(.el-tabs__item.is-active) {
+  color: var(--color-primary) !important;
+  font-weight: 700 !important;
+}
+.mcp :deep(.el-tabs__active-bar) {
+  background: linear-gradient(90deg, var(--color-primary), var(--color-yellow)) !important;
+  height: 3px !important;
+  border-radius: 2px !important;
+}
+
+/* 可访问性 */
+@media (prefers-reduced-motion: reduce) {
+  .section,
+  .step-item,
+  .mcp :deep(.el-collapse-item__header),
+  .mcp :deep(.el-button--primary) {
+    animation: none !important;
+    transition: none !important;
+  }
+  .step-item:hover { transform: none; }
 }
 </style>

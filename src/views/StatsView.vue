@@ -183,34 +183,143 @@ const categoryData = computed(() => {
     .sort((a, b) => b.value - a.value)
 })
 
+// 饼图通用调色板(分类 + 账户都用同一组,保证视觉一致)
+const piePalette = [
+  '#f56c2c', '#4f7cff', '#2fb55f', '#8a63f4', '#f5a623',
+  '#00b8a9', '#e05a9c', '#5b8ff9', '#ff9d4d', '#269a99'
+]
+
+/** 饼图+明细条的"分母" —— 各自统计期间内的总金额(用于算占比) */
+const categoryTotal = computed(() => categoryData.value.reduce((s, d) => s + d.value, 0))
+const accountTotal = computed(() => accountData.value.reduce((s, d) => s + d.value, 0))
+
+/**
+ * 中心显示用:总金额 + 占比最多项摘要
+ * 放在 graphic 里画(比 pie series label 更自由)
+ */
+function buildCenterGraphic(total: number, topLabel: string, topValue: number) {
+  return {
+    type: 'group',
+    left: 'center',
+    top: '40%',
+    children: [
+      {
+        type: 'text',
+        left: 'center',
+        top: -4,
+        style: {
+          text: '总支出',
+          fill: '#909399',
+          fontSize: 12,
+          fontWeight: 500,
+          textAlign: 'center',
+          textVerticalAlign: 'bottom'
+        }
+      },
+      {
+        type: 'text',
+        left: 'center',
+        top: 12,
+        style: {
+          text: '¥ ' + Number(total || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          fill: '#1f2329',
+          fontSize: 20,
+          fontWeight: 700,
+          fontFamily: 'ui-monospace, Cascadia Code, Consolas, monospace',
+          textAlign: 'center',
+          textVerticalAlign: 'middle'
+        }
+      },
+      {
+        type: 'text',
+        left: 'center',
+        top: 42,
+        style: {
+          text: `最高: ${topLabel} ¥${Number(topValue || 0).toFixed(2)}`,
+          fill: '#f56c2c',
+          fontSize: 11,
+          fontWeight: 500,
+          textAlign: 'center',
+          textVerticalAlign: 'top'
+        }
+      }
+    ]
+  }
+}
+
+const categoryPieCenter = computed(() => {
+  const total = categoryData.value.reduce((s, d) => s + d.value, 0)
+  const top = categoryData.value[0]
+  return buildCenterGraphic(total, top?.name || '—', top?.value || 0)
+})
+
+const accountPieCenter = computed(() => {
+  const total = accountData.value.reduce((s, d) => s + d.value, 0)
+  const top = accountData.value[0]
+  return buildCenterGraphic(total, top?.name || '—', top?.value || 0)
+})
+
 const pieOption = computed(() => ({
   tooltip: {
     trigger: 'item',
-    formatter: (p: any) =>
-      `${p.seriesName}<br/>${p.marker} ${p.name}<br/>¥ ${p.value.toFixed(2)} (${p.percent}%)`
+    backgroundColor: 'rgba(20, 21, 32, 0.95)',
+    borderColor: 'transparent',
+    textStyle: { color: '#fff', fontSize: 12 },
+    padding: [10, 14],
+    extraCssText: 'border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);',
+    formatter: (p: any) => {
+      const v = Number(p.value || 0).toFixed(2)
+      return `<div style="line-height:1.5">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;vertical-align:middle"></span>
+        <b>${p.name}</b>
+        <div style="margin-top:4px;color:#ffcfb0">¥ ${v} · ${p.percent}%</div>
+      </div>`
+    }
   },
-  legend: {
-    bottom: 0,
-    type: 'scroll',
-    textStyle: { color: '#646a73', fontSize: 12 }
-  },
+  graphic: [categoryPieCenter.value],
   series: [
     {
       name: '分类占比',
       type: 'pie',
-      radius: ['45%', '70%'],
-      center: ['50%', '45%'],
+      radius: ['52%', '74%'],
+      center: ['50%', '42%'],
       avoidLabelOverlap: true,
-      itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
-      label: { show: false },
-      labelLine: { show: false },
+      padAngle: 2,
+      itemStyle: {
+        borderRadius: 8,
+        borderColor: '#fff',
+        borderWidth: 3,
+        shadowBlur: 12,
+        shadowColor: 'rgba(245, 108, 44, 0.18)'
+      },
+      label: {
+        show: true,
+        position: 'outside',
+        formatter: (p: any) => `${p.name}\n${p.percent}%`,
+        color: '#4a5160',
+        fontSize: 11,
+        fontWeight: 500,
+        lineHeight: 14
+      },
+      labelLine: {
+        show: true,
+        length: 8,
+        length2: 10,
+        lineStyle: { color: '#d4d7dc', width: 1 }
+      },
+      emphasis: {
+        scale: true,
+        scaleSize: 8,
+        itemStyle: {
+          shadowBlur: 20,
+          shadowColor: 'rgba(0, 0, 0, 0.25)'
+        },
+        label: { fontSize: 12, fontWeight: 700, color: '#1f2329' }
+      },
       data: categoryData.value
     }
   ],
-  color: [
-    '#f56c2c','#4f7cff','#2fb55f','#8a63f4','#f5a623',
-    '#00b8a9','#e05a9c','#5b8ff9','#ff9d4d','#269a99'
-  ]
+  color: piePalette
 }))
 
 const accountData = computed(() => {
@@ -235,31 +344,64 @@ const accountData = computed(() => {
 const accountPieOption = computed(() => ({
   tooltip: {
     trigger: 'item',
-    formatter: (p: any) =>
-      `${p.seriesName}<br/>${p.marker} ${p.name}<br/>¥ ${p.value.toFixed(2)} (${p.percent}%)`
+    backgroundColor: 'rgba(20, 21, 32, 0.95)',
+    borderColor: 'transparent',
+    textStyle: { color: '#fff', fontSize: 12 },
+    padding: [10, 14],
+    extraCssText: 'border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);',
+    formatter: (p: any) => {
+      const v = Number(p.value || 0).toFixed(2)
+      return `<div style="line-height:1.5">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;vertical-align:middle"></span>
+        <b>${p.name}</b>
+        <div style="margin-top:4px;color:#a3c0ff">¥ ${v} · ${p.percent}%</div>
+      </div>`
+    }
   },
-  legend: {
-    bottom: 0,
-    type: 'scroll',
-    textStyle: { color: '#646a73', fontSize: 12 }
-  },
+  graphic: [accountPieCenter.value],
   series: [
     {
       name: '支付账户占比',
       type: 'pie',
-      radius: ['45%', '70%'],
-      center: ['50%', '45%'],
+      radius: ['52%', '74%'],
+      center: ['50%', '42%'],
       avoidLabelOverlap: true,
-      itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
-      label: { show: false },
-      labelLine: { show: false },
+      padAngle: 2,
+      itemStyle: {
+        borderRadius: 8,
+        borderColor: '#fff',
+        borderWidth: 3,
+        shadowBlur: 12,
+        shadowColor: 'rgba(79, 124, 255, 0.18)'
+      },
+      label: {
+        show: true,
+        position: 'outside',
+        formatter: (p: any) => `${p.name}\n${p.percent}%`,
+        color: '#4a5160',
+        fontSize: 11,
+        fontWeight: 500,
+        lineHeight: 14
+      },
+      labelLine: {
+        show: true,
+        length: 8,
+        length2: 10,
+        lineStyle: { color: '#d4d7dc', width: 1 }
+      },
+      emphasis: {
+        scale: true,
+        scaleSize: 8,
+        itemStyle: {
+          shadowBlur: 20,
+          shadowColor: 'rgba(0, 0, 0, 0.25)'
+        },
+        label: { fontSize: 12, fontWeight: 700, color: '#1f2329' }
+      },
       data: accountData.value.map((d) => ({ name: d.name, value: d.value }))
     }
   ],
-  color: [
-    '#4f7cff','#2fb55f','#f56c2c','#f5a623','#8a63f4',
-    '#00b8a9','#e05a9c','#5b8ff9','#ff9d4d','#269a99'
-  ]
+  color: piePalette
 }))
 
 const memberRanking = computed(() => {
@@ -400,12 +542,17 @@ watch(range, () => {
 
     <div class="chart-row">
       <div
-        class="chart-card"
+        class="chart-card pie-card"
         v-loading="store.loading"
         element-loading-text="数据加载中…"
       >
-        <div class="chart-title">分类支出占比</div>
-        <v-chart class="chart" :option="pieOption" autoresize />
+        <div class="chart-title">
+          分类支出占比
+          <span class="chart-meta" v-if="categoryData.length > 0">
+            共 <b>{{ categoryData.length }}</b> 个分类
+          </span>
+        </div>
+        <v-chart class="chart pie-chart" :option="pieOption" autoresize />
       </div>
       <div
         class="chart-card"
@@ -414,20 +561,28 @@ watch(range, () => {
       >
         <div class="chart-title">分类支出明细</div>
         <div class="cat-bars">
-          <div v-for="c in categoryData" :key="c.name" class="cat-bar-row">
+          <div v-for="(c, i) in categoryData" :key="c.name" class="cat-bar-row">
             <div class="cat-bar-label">
-              <span class="cat-bar-icon">{{ c.icon }}</span>
+              <span
+                class="cat-bar-icon"
+                :style="{ background: piePalette[i % piePalette.length] + '22', color: piePalette[i % piePalette.length] }"
+              >{{ c.icon }}</span>
               <span>{{ c.name }}</span>
             </div>
             <div class="cat-bar-track">
               <div
                 class="cat-bar-fill"
                 :style="{
-                  width: categoryData[0] ? (c.value / categoryData[0].value) * 100 + '%' : '0%'
+                  width: categoryData[0] ? (c.value / categoryData[0].value) * 100 + '%' : '0%',
+                  background: `linear-gradient(90deg, ${piePalette[i % piePalette.length]}, ${piePalette[(i + 1) % piePalette.length]})`,
+                  boxShadow: `0 0 8px ${piePalette[i % piePalette.length]}66`
                 }"
               />
             </div>
-            <div class="cat-bar-amount">{{ fmt(c.value) }}</div>
+            <div class="cat-bar-amount">
+              <span class="bar-amount-value">{{ fmt(c.value) }}</span>
+              <span class="bar-amount-pct">{{ categoryTotal ? ((c.value / categoryTotal) * 100).toFixed(1) : 0 }}%</span>
+            </div>
           </div>
           <div v-if="categoryData.length === 0" class="empty-mini">暂无数据</div>
         </div>
@@ -436,12 +591,17 @@ watch(range, () => {
 
     <div class="chart-row">
       <div
-        class="chart-card"
+        class="chart-card pie-card"
         v-loading="store.loading"
         element-loading-text="数据加载中…"
       >
-        <div class="chart-title">支付账户占比</div>
-        <v-chart class="chart" :option="accountPieOption" autoresize />
+        <div class="chart-title">
+          支付账户占比
+          <span class="chart-meta" v-if="accountData.length > 0">
+            共 <b>{{ accountData.length }}</b> 个账户
+          </span>
+        </div>
+        <v-chart class="chart pie-chart" :option="accountPieOption" autoresize />
       </div>
       <div
         class="chart-card"
@@ -450,20 +610,28 @@ watch(range, () => {
       >
         <div class="chart-title">支付账户明细</div>
         <div class="cat-bars">
-          <div v-for="a in accountData" :key="a.id" class="cat-bar-row">
+          <div v-for="(a, i) in accountData" :key="a.id" class="cat-bar-row">
             <div class="cat-bar-label">
-              <span class="cat-bar-icon">{{ a.icon }}</span>
+              <span
+                class="cat-bar-icon"
+                :style="{ background: piePalette[i % piePalette.length] + '22', color: piePalette[i % piePalette.length] }"
+              >{{ a.icon }}</span>
               <span>{{ a.name }}</span>
             </div>
             <div class="cat-bar-track">
               <div
-                class="cat-bar-fill acc-fill"
+                class="cat-bar-fill"
                 :style="{
-                  width: accountData[0] ? (a.value / accountData[0].value) * 100 + '%' : '0%'
+                  width: accountData[0] ? (a.value / accountData[0].value) * 100 + '%' : '0%',
+                  background: `linear-gradient(90deg, ${piePalette[i % piePalette.length]}, ${piePalette[(i + 1) % piePalette.length]})`,
+                  boxShadow: `0 0 8px ${piePalette[i % piePalette.length]}66`
                 }"
               />
             </div>
-            <div class="cat-bar-amount">{{ fmt(a.value) }}</div>
+            <div class="cat-bar-amount">
+              <span class="bar-amount-value">{{ fmt(a.value) }}</span>
+              <span class="bar-amount-pct">{{ accountTotal ? ((a.value / accountTotal) * 100).toFixed(1) : 0 }}%</span>
+            </div>
           </div>
           <div v-if="accountData.length === 0" class="empty-mini">暂无数据</div>
         </div>
@@ -473,6 +641,7 @@ watch(range, () => {
 </template>
 
 <style scoped>
+/* v2026-09-03 质感升级 */
 .stats {
   max-width: 1200px;
   margin: 0 auto;
@@ -483,136 +652,177 @@ watch(range, () => {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 12px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 .page-title {
   font-size: 26px;
   font-weight: 700;
   margin: 0 0 4px;
   letter-spacing: -0.3px;
+  background: linear-gradient(135deg, #1f2329 0%, #4a5160 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 .page-sub {
   color: var(--color-text-soft);
   font-size: 13px;
   margin: 0;
 }
-/* 本月 / 本年 胶囊切换：胶囊间留间距、可换行 */
 .range-pills {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
 }
-.range-pills .month-picker {
-  flex-shrink: 0;
-}
+.range-pills .month-picker { flex-shrink: 0; }
 .range-pills :deep(.el-radio-group) {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin: 0;
 }
-.range-pills :deep(.el-radio-button) {
-  margin: 0;
-  padding: 0;
-  flex-shrink: 0;
-}
-.range-pills :deep(.el-radio-button + .el-radio-button) {
-  margin-left: 0;
-}
+.range-pills :deep(.el-radio-button) { margin: 0; padding: 0; flex-shrink: 0; }
+.range-pills :deep(.el-radio-button + .el-radio-button) { margin-left: 0; }
 .range-pills :deep(.el-radio-button__inner) {
-  border: none;
-  background: transparent;
-  border-radius: 8px;
-  padding: 8px 16px;
-  box-shadow: none;
-  color: var(--color-text-soft);
-  font-weight: 500;
-  transition: background 0.15s, color 0.15s;
+  border: none !important;
+  background: transparent !important;
+  border-radius: 10px !important;
+  padding: 8px 16px !important;
+  box-shadow: none !important;
+  color: var(--color-text-soft) !important;
+  font-weight: 500 !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 .range-pills :deep(.el-radio-button__inner:hover) {
-  color: var(--color-primary);
+  color: var(--color-primary) !important;
+  background: rgba(245, 108, 44, 0.06) !important;
 }
 .range-pills :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  font-weight: 600;
+  background: linear-gradient(135deg, var(--color-primary-soft) 0%, #ffe2d0 100%) !important;
+  color: var(--color-primary) !important;
+  font-weight: 600 !important;
+  box-shadow: inset 0 0 0 1px rgba(245, 108, 44, 0.2) !important;
 }
 
 .top-row {
   display: grid;
   grid-template-columns: 1.3fr 1fr 1fr;
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 .big-stat,
 .top3 {
+  position: relative;
   background: #fff;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 24px;
-  box-shadow: var(--shadow-card);
-  transition: transform 0.2s, box-shadow 0.2s;
+  padding: 26px 28px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 18px rgba(16, 24, 40, 0.05);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
 }
+.big-stat::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -30%;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--color-primary) 0%, transparent 70%);
+  filter: blur(40px);
+  opacity: 0.15;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.big-stat:hover::before { opacity: 0.28; }
 .big-stat {
   display: flex;
   align-items: center;
   gap: 14px;
 }
-.big-stat:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-card-hover);
+.big-stat:hover,
+.top3:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 14px 32px rgba(16, 24, 40, 0.08), 0 0 0 1px rgba(245, 108, 44, 0.18);
 }
 .big-stat.highlight {
   background: linear-gradient(135deg, #ff8f4d 0%, #f56c2c 100%);
   border: none;
   color: #fff;
+  box-shadow: 0 12px 32px -6px rgba(245, 108, 44, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
+.big-stat.highlight::before { display: none; }
 .big-stat.highlight:hover {
-  box-shadow: 0 8px 22px rgba(245, 108, 44, 0.35);
+  box-shadow: 0 16px 40px -6px rgba(245, 108, 44, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transform: translateY(-3px);
 }
 .big-stat-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
   background: var(--color-primary-soft);
   color: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: 24px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 6px 16px -4px rgba(245, 108, 44, 0.35);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.big-stat:hover .big-stat-icon {
+  transform: scale(1.08) rotate(-4deg);
 }
 .big-stat.highlight .big-stat-icon {
   background: rgba(255, 255, 255, 0.22);
   color: #fff;
+  box-shadow: none;
 }
 .big-stat-label {
   color: var(--color-text-soft);
   font-size: 13px;
   margin-bottom: 8px;
+  font-weight: 500;
+  position: relative;
+  z-index: 1;
 }
-.big-stat.highlight .big-stat-label {
-  color: rgba(255, 255, 255, 0.85);
-}
+.big-stat.highlight .big-stat-label { color: rgba(255, 255, 255, 0.88); }
 .big-stat-value {
   font-size: 36px;
   font-weight: 700;
   color: var(--color-primary);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.3px;
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-yellow) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
-.big-stat.highlight .big-stat-value {
-  color: #fff;
-}
+.big-stat.highlight .big-stat-value { color: #fff; }
 .top3-title {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-text);
   margin-bottom: 16px;
   display: flex;
   align-items: baseline;
   gap: 6px;
+}
+.top3-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--color-primary), var(--color-yellow));
+  margin-right: 4px;
+  align-self: center;
 }
 .top3-sub {
   font-size: 11px;
@@ -624,6 +834,14 @@ watch(range, () => {
   align-items: center;
   gap: 12px;
   padding: 8px 0;
+  border-bottom: 1px dashed transparent;
+  transition: background 0.2s;
+}
+.top3-row:hover {
+  background: linear-gradient(90deg, rgba(245, 108, 44, 0.04) 0%, transparent 100%);
+  border-radius: 6px;
+  padding-left: 6px;
+  padding-right: 6px;
 }
 .rank {
   width: 22px;
@@ -633,52 +851,103 @@ watch(range, () => {
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   color: #fff;
   background: #c0c4cc;
+  flex-shrink: 0;
 }
-.rank-1 { background: #f5a623; }
-.rank-2 { background: #b8bcc4; }
-.rank-3 { background: #d4985f; }
+.rank-1 { background: linear-gradient(135deg, #f5a623, #ff8a3d); box-shadow: 0 0 12px rgba(245, 166, 35, 0.5); }
+.rank-2 { background: linear-gradient(135deg, #b8bcc4, #8a909a); }
+.rank-3 { background: linear-gradient(135deg, #d4985f, #a06b3a); }
 .top3-name {
   flex: 1;
   font-size: 14px;
+  color: var(--color-text);
+  font-weight: 500;
 }
 .top3-amount {
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  color: var(--color-text);
 }
-/* 窄窗口：大数字卡整行，两个排行卡片并排换行 */
 @media (max-width: 1100px) {
-  .top-row {
-    grid-template-columns: 1fr 1fr;
-  }
-  .big-stat {
-    grid-column: 1 / -1;
-  }
+  .top-row { grid-template-columns: 1fr 1fr; }
+  .big-stat { grid-column: 1 / -1; }
 }
 @media (max-width: 640px) {
-  .top-row {
-    grid-template-columns: 1fr;
-  }
+  .top-row { grid-template-columns: 1fr; }
 }
 
 .chart-card {
+  position: relative;
   background: #fff;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 20px 24px;
-  box-shadow: var(--shadow-card);
+  padding: 24px 28px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 18px rgba(16, 24, 40, 0.05);
   margin-bottom: 16px;
+  transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+.chart-card:hover {
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 14px 32px rgba(16, 24, 40, 0.08), 0 0 0 1px rgba(245, 108, 44, 0.18);
 }
 .chart-title {
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-text);
-  margin-bottom: 16px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.2px;
+}
+.chart-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--color-primary), var(--color-yellow));
+}
+.chart-title .chart-meta {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-soft);
+  background: var(--color-primary-soft);
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 108, 44, 0.12);
+}
+.chart-title .chart-meta b {
+  color: var(--color-primary);
+  font-weight: 700;
+  margin: 0 2px;
+  font-variant-numeric: tabular-nums;
 }
 .chart {
-  height: 280px;
+  height: 320px;
+}
+/* 饼图 card 更高,容纳中心数字 + 外侧 label */
+.pie-card {
+  position: relative;
+  overflow: hidden;
+}
+.pie-card::after {
+  content: '';
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(245, 108, 44, 0.06) 0%, transparent 70%);
+  filter: blur(30px);
+  pointer-events: none;
+}
+.pie-chart {
+  height: 360px;
 }
 .chart-row {
   display: grid;
@@ -686,60 +955,127 @@ watch(range, () => {
   gap: 16px;
   margin-bottom: 16px;
 }
-.chart-row .chart-card {
-  margin-bottom: 0;
-}
-.chart-row:last-child {
-  margin-bottom: 0;
-}
+.chart-row .chart-card { margin-bottom: 0; }
+.chart-row:last-child { margin-bottom: 0; }
 
 .cat-bars {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  max-height: 280px;
+  gap: 10px;
+  max-height: 320px;
   overflow-y: auto;
+  padding: 4px 4px 4px 0;
 }
 .cat-bar-row {
   display: grid;
-  grid-template-columns: 110px 1fr 90px;
+  grid-template-columns: 120px 1fr 90px;
   align-items: center;
   gap: 12px;
   font-size: 13px;
+  padding: 4px 0;
+  transition: background 0.2s;
+  border-radius: 6px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.cat-bar-row:hover {
+  background: rgba(245, 108, 44, 0.04);
 }
 .cat-bar-label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   color: var(--color-text);
+  font-weight: 500;
 }
 .cat-bar-icon {
   font-size: 16px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--color-primary-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .cat-bar-track {
-  background: #f0f1f2;
+  background: linear-gradient(90deg, #f4f5f7 0%, #eceef1 100%);
   height: 8px;
-  border-radius: 4px;
+  border-radius: 999px;
   overflow: hidden;
+  border: 1px solid var(--color-border);
 }
 .cat-bar-fill {
   height: 100%;
   background: linear-gradient(90deg, #ff9d4d, #f56c2c);
-  border-radius: 4px;
-  transition: width 0.3s;
+  border-radius: 999px;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 8px rgba(245, 108, 44, 0.4);
+  position: relative;
+}
+.cat-bar-fill::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 20%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.35) 100%);
+  border-radius: 999px;
 }
 .cat-bar-fill.acc-fill {
   background: linear-gradient(90deg, #8ec5ff, #5b8ff9);
+  box-shadow: 0 0 8px rgba(79, 124, 255, 0.4);
 }
 .cat-bar-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-soft);
+}
+.cat-bar-amount .bar-amount-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.2;
+}
+.cat-bar-amount .bar-amount-pct {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  padding: 1px 6px;
+  border-radius: 999px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 .empty-mini {
   text-align: center;
   color: #c0c4cc;
-  padding: 30px 0;
+  padding: 50px 0;
   font-size: 13px;
+}
+
+/* 可访问性:关闭所有动画 */
+@media (prefers-reduced-motion: reduce) {
+  .big-stat,
+  .big-stat::before,
+  .big-stat-icon,
+  .top3,
+  .top3-row,
+  .chart-card,
+  .cat-bar-fill,
+  .cat-bar-row {
+    animation: none !important;
+    transition: none !important;
+  }
+  .big-stat:hover,
+  .big-stat:hover .big-stat-icon,
+  .top3:hover,
+  .cat-bar-fill::after {
+    transform: none;
+  }
 }
 </style>

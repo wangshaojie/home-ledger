@@ -1,11 +1,11 @@
 <script setup lang="ts">
 /**
- * v2026-08-25 登录体系重构
- * 密码登录页，邮箱用于验证（注册/改密/忘密）。
- * - 默认展示：邮箱 + 密码登录
- * - 底部入口：注册、忘密（→ 跳 /verify-email）
+ * v2026-09-03 登录页重设计
+ * - 深色科技感 + 流光动画 + 玻璃拟态
+ * - 样式复用 main.css 的 .dark-page 公共设计系统
+ * - 保留全部功能(邮箱/密码/记住/忘密/注册/免责)
  */
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { notify } from '@/lib/notify'
 import { useAuthStore } from '@/stores/auth'
@@ -17,14 +17,51 @@ const email = ref('')
 const password = ref('')
 const submitting = ref(false)
 const remember = ref(true)
+const shake = ref(false)
+const cardVisible = ref(false)
 
 const emailValid = computed(() => /^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(email.value))
 const canSubmit = computed(
   () => emailValid.value && password.value.length >= 6 && !submitting.value
 )
 
+const reduceMotion = ref(false)
+let mq: MediaQueryList | null = null
+function onMqChange(e: MediaQueryListEvent) {
+  reduceMotion.value = e.matches
+}
+onMounted(() => {
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    reduceMotion.value = mq.matches
+    mq.addEventListener('change', onMqChange)
+  }
+  requestAnimationFrame(() => {
+    cardVisible.value = true
+  })
+})
+onBeforeUnmount(() => {
+  mq?.removeEventListener('change', onMqChange)
+})
+
+function triggerShake() {
+  if (reduceMotion.value) return
+  shake.value = false
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      shake.value = true
+    })
+  })
+  setTimeout(() => {
+    shake.value = false
+  }, 600)
+}
+
 async function submit() {
-  if (!canSubmit.value) return
+  if (!canSubmit.value) {
+    triggerShake()
+    return
+  }
   submitting.value = true
   const r = await auth.signInWithPassword(email.value, password.value, remember.value)
   submitting.value = false
@@ -35,7 +72,7 @@ async function submit() {
     else router.push({ name: 'onboarding' })
   } else {
     notify.error(r.message)
-    // 邮箱未验证：跳到验证页（让用户重发验证码）
+    triggerShake()
     if ((r as any).code === 'email_not_verified') {
       setTimeout(() => {
         router.push({
@@ -57,146 +94,134 @@ function goForgot() {
 </script>
 
 <template>
-  <div class="login-page">
-    <div class="login-card">
-      <div class="login-header">
-        <div class="logo">🏠</div>
-        <h1>家庭记账</h1>
+  <div class="dark-page login-page">
+    <div class="bg-layer" aria-hidden="true">
+      <div class="bg-grid"></div>
+      <div class="bg-orb bg-orb--orange"></div>
+      <div class="bg-orb bg-orb--purple"></div>
+      <div class="bg-orb bg-orb--cyan"></div>
+      <div class="bg-noise"></div>
+    </div>
+
+    <main
+      class="glass-card"
+      :class="{ 'is-visible': cardVisible, 'is-shake': shake }"
+      role="main"
+    >
+      <div class="card-border" aria-hidden="true"></div>
+      <div class="card-glow" aria-hidden="true"></div>
+
+      <div class="page-header">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="32" height="32" fill="none">
+            <defs>
+              <linearGradient id="logo-grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#fff" stop-opacity="0.95" />
+                <stop offset="1" stop-color="#fff" stop-opacity="0.7" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M16 4 L28 13 L28 27 C28 28.1 27.1 29 26 29 L19 29 L19 20 C19 19.4 18.6 19 18 19 L14 19 C13.4 19 13 19.4 13 20 L13 29 L6 29 C4.9 29 4 28.1 4 27 L4 13 Z"
+              fill="url(#logo-grad)"
+            />
+          </svg>
+          <div class="logo-shine-bar" aria-hidden="true"></div>
+        </div>
+        <h1 class="title">
+          <span class="title-cn">家庭记账</span>
+          <span class="title-en">HOME LEDGER</span>
+        </h1>
         <p class="subtitle">邮箱 + 密码登录</p>
       </div>
 
-      <el-form @submit.prevent="submit" label-position="top">
-        <el-form-item label="邮箱">
-          <el-input
-            v-model="email"
-            placeholder="请输入邮箱"
-            clearable
-            size="large"
-            type="email"
-            autocomplete="email"
-          />
-        </el-form-item>
-
-        <el-form-item label="密码">
-          <el-input
-            v-model="password"
-            type="password"
-            show-password
-            placeholder="8-20 位"
-            size="large"
-            autocomplete="current-password"
-            @keyup.enter="submit"
-          />
-          <div class="hint">
-            <el-link type="primary" :underline="'never'" @click="goForgot">忘记密码？</el-link>
+      <form class="login-form" @submit.prevent="submit" novalidate>
+        <div class="field" :class="{ 'is-filled': email, 'is-valid': emailValid && email }">
+          <label for="login-email" class="field-label">邮箱</label>
+          <div class="field-input-wrap">
+            <span class="field-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <path d="M3 7l9 6 9-6" />
+              </svg>
+            </span>
+            <input
+              id="login-email"
+              v-model="email"
+              type="email"
+              class="field-input"
+              placeholder="you@example.com"
+              autocomplete="email"
+              spellcheck="false"
+              :disabled="submitting"
+            />
+            <span v-if="emailValid" class="field-check" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12.5l4 4L19 7" />
+              </svg>
+            </span>
           </div>
-        </el-form-item>
-
-        <div class="remember-row">
-          <el-checkbox v-model="remember">30 天免登录（关闭后下次需重新登录）</el-checkbox>
         </div>
 
-        <el-button
-          type="primary"
-          size="large"
+        <div class="field" :class="{ 'is-filled': password }">
+          <label for="login-password" class="field-label">
+            <span>密码</span>
+            <a class="field-link" href="#" tabindex="0" @click.prevent="goForgot">忘记密码？</a>
+          </label>
+          <div class="field-input-wrap">
+            <span class="field-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="10" width="16" height="11" rx="2" />
+                <path d="M8 10V7a4 4 0 1 1 8 0v3" />
+                <circle cx="12" cy="15.5" r="1.2" fill="currentColor" stroke="none" />
+              </svg>
+            </span>
+            <input
+              id="login-password"
+              v-model="password"
+              type="password"
+              class="field-input"
+              placeholder="8-20 位"
+              autocomplete="current-password"
+              :disabled="submitting"
+              @keyup.enter="submit"
+            />
+          </div>
+        </div>
+
+        <label class="remember-row">
+          <input v-model="remember" type="checkbox" class="remember-input" />
+          <span class="remember-box" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12.5l4 4L19 7" />
+            </svg>
+          </span>
+          <span class="remember-text">30 天免登录（关闭后下次需重新登录）</span>
+        </label>
+
+        <button
+          type="submit"
           class="submit-btn"
+          :class="{ 'is-loading': submitting, 'is-disabled': !canSubmit }"
           :disabled="!canSubmit"
-          :loading="submitting"
-          @click="submit"
+          :aria-busy="submitting"
         >
-          登录
-        </el-button>
+          <span class="submit-shine" aria-hidden="true"></span>
+          <span class="submit-text">
+            <template v-if="submitting">
+              <span class="spinner" aria-hidden="true"></span>
+              登录中…
+            </template>
+            <template v-else>登 录</template>
+          </span>
+        </button>
 
         <div class="bottom-tip">
           没账号？
-          <el-link type="primary" :underline="'never'" @click="goRegister">立即注册</el-link>
+          <a class="link" href="#" tabindex="0" @click.prevent="goRegister">立即注册</a>
         </div>
-      </el-form>
+      </form>
 
       <div class="footer-tip">本产品仅记录家庭支出，不含收入统计、理财、社交功能</div>
-    </div>
+    </main>
   </div>
 </template>
-
-<style scoped>
-.login-page {
-  height: 100vh;
-  width: 100vw;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #fff3ec 0%, #f5f5f7 100%);
-}
-.login-card {
-  width: 440px;
-  padding: 40px;
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.06);
-}
-.login-header {
-  text-align: center;
-  margin-bottom: 24px;
-}
-.logo {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 14px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #ff8f4d 0%, #f56c2c 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-  box-shadow: 0 8px 20px rgba(245, 108, 44, 0.35);
-}
-.login-header h1 {
-  font-size: 24px;
-  margin: 0 0 4px;
-  color: var(--color-text);
-  letter-spacing: 1px;
-}
-.subtitle {
-  color: var(--color-text-soft);
-  font-size: 13px;
-  margin: 0;
-}
-.hint {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
-}
-.remember-row {
-  margin: 8px 0 20px;
-}
-.submit-btn {
-  width: 100%;
-  background-image: linear-gradient(135deg, #ff8f4d 0%, #f56c2c 100%);
-  border: none;
-  border-radius: 12px;
-  box-shadow: var(--shadow-btn);
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-.submit-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(245, 108, 44, 0.4);
-}
-.submit-btn.is-disabled {
-  background-image: none;
-  background-color: var(--el-color-primary-light-7);
-  color: var(--el-color-primary);
-}
-.bottom-tip {
-  text-align: center;
-  font-size: 13px;
-  color: #909399;
-  margin-top: 16px;
-}
-.footer-tip {
-  text-align: center;
-  font-size: 12px;
-  color: #909399;
-  margin-top: 24px;
-}
-</style>
