@@ -31,6 +31,8 @@ const formVisible = ref(false)
 const filterVisible = ref(false)
 const editingId = ref<string | null>(null)
 const listEl = ref<HTMLElement | null>(null)
+// 成员统计图引用：记账/分摊/编辑/删除成功后调 reload() 让图重算
+const statsPanelRef = ref<{ reload: () => Promise<void> } | null>(null)
 // 提交锁：避免网络往返期间用户重复点击/回车导致重复记账
 const submitting = ref(false)
 
@@ -267,6 +269,7 @@ async function submitForm() {
         markCategoryUsed(familyStore.family?.id, form.value.categoryId)
         closeForm()
         notify.success(r.message)
+        void statsPanelRef.value?.reload()
       } else {
         notify.error(r.message)
       }
@@ -294,6 +297,7 @@ async function submitForm() {
         markCategoryUsed(familyStore.family?.id, form.value.categoryId)
         closeForm()
         notify.success(r.message)
+        void statsPanelRef.value?.reload()
       } else {
         notify.error(r.message)
       }
@@ -312,6 +316,7 @@ async function submitForm() {
         markCategoryUsed(familyStore.family?.id, form.value.categoryId)
         closeForm()
         notify.success(r.message)
+        void statsPanelRef.value?.reload()
       } else {
         notify.error(r.message)
       }
@@ -336,8 +341,12 @@ async function deleteOne(e: any) {
       }
     )
     const r = await store.remove(e.id)
-    if (r.ok) notify.success(r.message)
-    else notify.error(r.message)
+    if (r.ok) {
+      notify.success(r.message)
+      void statsPanelRef.value?.reload()
+    } else {
+      notify.error(r.message)
+    }
   } catch {}
 }
 
@@ -522,7 +531,7 @@ function fmtMoney(n: number) {
       </el-button>
     </div>
 
-    <MemberStatsPanel @jump-to-list="onJumpToList" />
+    <MemberStatsPanel ref="statsPanelRef" @jump-to-list="onJumpToList" />
 
     <div ref="listEl" class="list-card">
       <div class="list-head">

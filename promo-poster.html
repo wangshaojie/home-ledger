@@ -29,10 +29,8 @@
     -webkit-text-size-adjust: 100%;
   }
   body {
-    /* 居中预览用,内容仍是滚动 */
     display: flex; justify-content: center;
   }
-  /* ============ 海报主容器 — 750 宽,自然高度,H5 滚动 ============ */
   .poster {
     width: 100%;
     max-width: 750px;
@@ -44,93 +42,273 @@
     box-shadow: 0 0 40px rgba(60, 40, 10, 0.12);
     padding-bottom: calc(40px + var(--safe-bottom));
   }
-  /* 装饰：右上角圆点 */
-  .deco-dots {
-    position: absolute; top: 40px; right: 32px;
-    display: grid; grid-template-columns: repeat(5, 8px); gap: 8px;
-    opacity: 0.30;
+
+  /* ============================================
+     🎯 第一屏 — Hero (0 ~ 880px)
+     目标:3 秒内抓眼球
+     ============================================ */
+  .hero-screen {
+    position: relative;
+    background:
+      radial-gradient(800px 500px at 80% 20%, rgba(251, 146, 60, 0.35) 0%, transparent 60%),
+      radial-gradient(600px 400px at 20% 80%, rgba(236, 72, 153, 0.18) 0%, transparent 60%),
+      linear-gradient(180deg, #fff7ec 0%, #ffedd5 100%);
+    padding: 56px 36px 36px;
+    overflow: hidden;
+  }
+  /* 装饰圆点 */
+  .hero-deco {
+    position: absolute; top: 32px; right: 24px;
+    display: grid; grid-template-columns: repeat(4, 8px); gap: 8px;
+    opacity: 0.35;
     pointer-events: none;
   }
-  .deco-dots i { display:block; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); }
-  .deco-dots i:nth-child(odd) { background: var(--mcp-2); }
-
-  /* 顶部 brand 行 */
-  .brand-row {
-    padding: 56px 44px 0;
-    display: flex; align-items: center; gap: 16px;
+  .hero-deco i { display:block; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); }
+  .hero-deco i:nth-child(odd) { background: var(--mcp-2); }
+  /* 背景大字 */
+  .hero-bg-text {
+    position: absolute; top: 30px; left: -10px;
+    font-size: 220px; font-weight: 900; line-height: 1;
+    color: rgba(234, 88, 12, 0.06);
+    letter-spacing: -8px;
+    pointer-events: none;
+    user-select: none;
   }
-  .brand-row .icon {
-    width: 64px; height: 64px; border-radius: 16px;
+
+  /* 顶部小品牌 */
+  .mini-brand {
+    position: relative;
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 36px;
+  }
+  .mini-brand .icon {
+    width: 56px; height: 56px; border-radius: 14px;
     background: #fff;
-    box-shadow: 0 10px 24px rgba(180, 80, 20, 0.15);
+    box-shadow: 0 10px 24px rgba(180, 80, 20, 0.20);
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
   }
-  .brand-row .icon img { width: 56px; height: 56px; }
-  .brand-row .name {
-    font-size: 30px; font-weight: 800; letter-spacing: 1px;
+  .mini-brand .icon img { width: 48px; height: 48px; }
+  .mini-brand .name {
+    font-size: 26px; font-weight: 800; letter-spacing: 1px;
   }
-  .brand-row .name .en { display:block; font-size: 13px; color: var(--ink-soft); font-weight: 500; letter-spacing: 2px; margin-top: 2px;}
+  .mini-brand .name .en {
+    display: block; font-size: 11px; color: var(--ink-soft);
+    font-weight: 500; letter-spacing: 2px; margin-top: 2px;
+  }
 
-  /* Tag */
-  .tag {
-    display: inline-block; margin: 26px 0 0 44px;
-    padding: 8px 18px; border-radius: 999px;
-    background: rgba(217, 119, 6, 0.12);
-    color: var(--brand-deep);
-    font-size: 18px; font-weight: 600; letter-spacing: 2px;
+  /* 痛点问句 */
+  .hook-question {
+    position: relative;
+    font-size: 30px; font-weight: 800; line-height: 1.25;
+    color: var(--ink);
+    margin-bottom: 18px;
+  }
+  .hook-question .strike {
+    position: relative; display: inline-block;
+  }
+  .hook-question .strike::after {
+    content: ""; position: absolute;
+    left: -4px; right: -4px; top: 55%;
+    height: 4px; background: var(--brand);
+    transform: rotate(-3deg);
+    border-radius: 2px;
   }
 
   /* 主标题 */
-  .hero {
-    margin: 26px 44px 0;
+  .hero-title {
+    position: relative;
+    font-size: 88px; line-height: 1.0; font-weight: 900; letter-spacing: 2px;
+    margin-bottom: 18px;
   }
-  .hero h1 {
-    font-size: 76px; line-height: 1.08; font-weight: 900; letter-spacing: 2px;
-  }
-  .hero h1 .accent {
-    background: linear-gradient(135deg, var(--brand) 0%, #ef4444 100%);
+  .hero-title .line1 {
+    display: block;
+    background: linear-gradient(135deg, #ea580c 0%, #ef4444 100%);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  .hero h1 .stroke {
-    -webkit-text-stroke: 2px var(--ink); color: transparent;
+  .hero-title .line2 {
+    display: block;
+    -webkit-text-stroke: 2.5px var(--ink); color: transparent;
   }
-  .hero .sub {
-    margin-top: 20px;
-    font-size: 24px; color: var(--ink-soft); line-height: 1.55; font-weight: 500;
-  }
-  .hero .sub b { color: var(--ink); font-weight: 700; }
 
-  /* 卡片组 */
+  /* 一句话定位 */
+  .hero-tagline {
+    position: relative;
+    font-size: 22px; color: var(--ink-soft);
+    line-height: 1.5; font-weight: 500;
+    margin-bottom: 28px;
+  }
+  .hero-tagline b { color: var(--ink); font-weight: 800; }
+
+  /* 微信语音波演示 */
+  .voice-wave {
+    position: relative;
+    background: #fff;
+    border: 1px solid rgba(217, 119, 6, 0.15);
+    border-radius: 18px;
+    padding: 18px 20px;
+    display: flex; align-items: center; gap: 14px;
+    box-shadow: 0 10px 26px rgba(80, 50, 10, 0.08);
+    margin-bottom: 22px;
+  }
+  .voice-wave .mic {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: linear-gradient(135deg, #07c160 0%, #10b981 100%);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 6px 16px rgba(7, 193, 96, 0.35);
+  }
+  .voice-wave .mic svg { width: 22px; height: 22px; fill: #fff; }
+  .voice-wave .waveform {
+    flex: 1;
+    display: flex; align-items: center; gap: 3px;
+    height: 28px;
+  }
+  .voice-wave .waveform i {
+    display: block; width: 3px;
+    background: linear-gradient(180deg, #ea580c 0%, #f59e0b 100%);
+    border-radius: 2px;
+    animation: wave 1.2s ease-in-out infinite;
+  }
+  .voice-wave .waveform i:nth-child(1) { height: 30%; animation-delay: 0s; }
+  .voice-wave .waveform i:nth-child(2) { height: 60%; animation-delay: 0.1s; }
+  .voice-wave .waveform i:nth-child(3) { height: 90%; animation-delay: 0.2s; }
+  .voice-wave .waveform i:nth-child(4) { height: 70%; animation-delay: 0.3s; }
+  .voice-wave .waveform i:nth-child(5) { height: 40%; animation-delay: 0.4s; }
+  .voice-wave .waveform i:nth-child(6) { height: 80%; animation-delay: 0.5s; }
+  .voice-wave .waveform i:nth-child(7) { height: 50%; animation-delay: 0.6s; }
+  .voice-wave .waveform i:nth-child(8) { height: 75%; animation-delay: 0.7s; }
+  .voice-wave .waveform i:nth-child(9) { height: 35%; animation-delay: 0.8s; }
+  .voice-wave .waveform i:nth-child(10) { height: 60%; animation-delay: 0.9s; }
+  .voice-wave .waveform i:nth-child(11) { height: 90%; animation-delay: 1.0s; }
+  .voice-wave .waveform i:nth-child(12) { height: 45%; animation-delay: 1.1s; }
+  .voice-wave .waveform i:nth-child(13) { height: 70%; animation-delay: 1.2s; }
+  .voice-wave .waveform i:nth-child(14) { height: 55%; animation-delay: 1.3s; }
+  .voice-wave .waveform i:nth-child(15) { height: 85%; animation-delay: 1.4s; }
+  .voice-wave .waveform i:nth-child(16) { height: 30%; animation-delay: 1.5s; }
+  .voice-wave .waveform i:nth-child(17) { height: 65%; animation-delay: 1.6s; }
+  .voice-wave .waveform i:nth-child(18) { height: 95%; animation-delay: 1.7s; }
+  @keyframes wave {
+    0%, 100% { transform: scaleY(0.4); }
+    50% { transform: scaleY(1.2); }
+  }
+  .voice-wave .label {
+    font-size: 14px; color: var(--ink-soft); font-weight: 600;
+    white-space: nowrap;
+  }
+  .voice-wave .label b { color: var(--brand-deep); }
+
+  /* 数据三连 */
+  .stats {
+    position: relative;
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px; margin-bottom: 26px;
+  }
+  .stat {
+    background: rgba(255,255,255,0.7);
+    border: 1px solid rgba(217, 119, 6, 0.12);
+    border-radius: 14px;
+    padding: 12px 8px;
+    text-align: center;
+    backdrop-filter: blur(4px);
+  }
+  .stat .n {
+    font-size: 28px; font-weight: 900; line-height: 1;
+    background: linear-gradient(135deg, #ea580c 0%, #ef4444 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .stat .l {
+    margin-top: 4px;
+    font-size: 12px; color: var(--ink-soft); font-weight: 600;
+  }
+
+  /* 主 CTA */
+  .hero-cta {
+    position: relative;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .hero-cta .btn-primary {
+    background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%);
+    color: #fff;
+    text-align: center;
+    padding: 18px 20px;
+    border-radius: 16px;
+    font-size: 22px; font-weight: 800; letter-spacing: 2px;
+    box-shadow: 0 12px 28px rgba(234, 88, 12, 0.40);
+    text-decoration: none;
+  }
+  .hero-cta .btn-primary .arrow {
+    display: inline-block; margin-left: 4px;
+    animation: nudge 1.4s ease-in-out infinite;
+  }
+  @keyframes nudge {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(4px); }
+  }
+  .hero-cta .btn-secondary {
+    text-align: center;
+    padding: 14px 20px;
+    border-radius: 14px;
+    font-size: 16px; font-weight: 700;
+    color: var(--brand-deep);
+    background: rgba(255,255,255,0.7);
+    border: 1.5px solid rgba(217, 119, 6, 0.30);
+    text-decoration: none;
+    backdrop-filter: blur(4px);
+  }
+  .hero-cta .btn-secondary b { color: var(--ink); }
+
+  /* 滚动提示 */
+  .scroll-hint {
+    position: relative;
+    text-align: center;
+    margin-top: 22px;
+    font-size: 13px; color: var(--ink-mute); font-weight: 600;
+    letter-spacing: 2px;
+  }
+  .scroll-hint .arrow {
+    display: block; margin: 4px auto 0;
+    animation: bob 1.4s ease-in-out infinite;
+  }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); opacity: 0.6; }
+    50% { transform: translateY(4px); opacity: 1; }
+  }
+
+  /* ============================================
+     第二屏及以后 — 详情
+     ============================================ */
+
+  /* 三大特性 */
   .features {
-    margin: 38px 32px 0;
-    display: grid; grid-template-columns: 1fr; gap: 14px;
+    margin: 32px 28px 0;
+    display: grid; grid-template-columns: 1fr; gap: 12px;
   }
   .feat {
     background: #fff;
     border-radius: 20px;
-    padding: 22px 22px;
-    display: flex; align-items: center; gap: 18px;
-    box-shadow: 0 10px 26px rgba(80, 50, 10, 0.07);
+    padding: 20px 20px;
+    display: flex; align-items: center; gap: 16px;
+    box-shadow: 0 8px 22px rgba(80, 50, 10, 0.07);
     border: 1px solid rgba(217, 119, 6, 0.10);
   }
   .feat .emoji {
-    width: 58px; height: 58px; border-radius: 14px;
+    width: 54px; height: 54px; border-radius: 14px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 32px; flex-shrink: 0;
+    font-size: 30px; flex-shrink: 0;
   }
   .feat.a .emoji { background: #fef3c7; }
   .feat.b .emoji { background: #dcfce7; }
   .feat.c .emoji { background: #dbeafe; }
-  .feat .text h3 { font-size: 24px; font-weight: 800; margin-bottom: 3px; }
-  .feat .text p { font-size: 17px; color: var(--ink-soft); line-height: 1.4; }
+  .feat .text h3 { font-size: 22px; font-weight: 800; margin-bottom: 3px; }
+  .feat .text p { font-size: 16px; color: var(--ink-soft); line-height: 1.4; }
 
   /* MCP 模块 */
   .mcp {
-    margin: 38px 32px 0;
+    margin: 36px 28px 0;
     background: linear-gradient(135deg, #1e1b4b 0%, #4338ca 50%, #6d28d9 100%);
     border-radius: 26px;
-    padding: 32px 28px 28px;
+    padding: 30px 26px 26px;
     color: #fff;
     position: relative;
     overflow: hidden;
@@ -154,82 +332,18 @@
   }
   .mcp h2 {
     position: relative;
-    margin-top: 16px;
-    font-size: 40px; line-height: 1.18; font-weight: 900; letter-spacing: 1px;
+    margin-top: 14px;
+    font-size: 38px; line-height: 1.18; font-weight: 900; letter-spacing: 1px;
   }
   .mcp h2 .hl { color: #fde68a; }
-  .mcp .mcp-sub {
-    position: relative;
-    margin-top: 10px;
-    font-size: 19px; color: rgba(255,255,255,0.88); line-height: 1.55;
-  }
 
-  /* 流程 */
-  .flow {
-    position: relative;
-    margin-top: 24px;
-    display: grid; grid-template-columns: 1fr 36px 1fr 36px 1fr;
-    align-items: center;
-  }
-  .flow .node {
-    background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.22);
-    border-radius: 16px;
-    padding: 16px 8px; text-align: center;
-    backdrop-filter: blur(6px);
-  }
-  .flow .node .ico { font-size: 28px; }
-  .flow .node .t { font-size: 16px; font-weight: 700; margin-top: 4px; }
-  .flow .node .d { font-size: 13px; color: rgba(255,255,255,0.70); margin-top: 2px; line-height: 1.3; }
-  .flow .arrow {
-    text-align: center; font-size: 22px; color: rgba(255,255,255,0.55);
-  }
-  .flow .node.highlight {
-    background: linear-gradient(135deg, #fde68a, #f59e0b);
-    color: #1e1b4b; border-color: transparent;
-  }
-  .flow .node.highlight .d { color: rgba(30, 27, 75, 0.7); }
-
-  /* 3 步骤 */
-  .mcp-steps {
-    position: relative;
-    margin-top: 22px;
-    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
-  }
-  .step {
-    background: rgba(255,255,255,0.10);
-    border: 1px dashed rgba(255,255,255,0.35);
-    border-radius: 12px;
-    padding: 12px 8px; text-align: center;
-  }
-  .step .num {
-    display: inline-block;
-    width: 22px; height: 22px; line-height: 22px;
-    border-radius: 50%;
-    background: #fde68a; color: #1e1b4b;
-    font-size: 13px; font-weight: 900;
-  }
-  .step .t { margin-top: 6px; font-size: 14px; font-weight: 700; line-height: 1.35; }
-  .step .d { margin-top: 3px; font-size: 12px; color: rgba(255,255,255,0.70); line-height: 1.35; }
-
-  .mcp-quote {
-    position: relative;
-    margin-top: 20px;
-    padding: 14px 16px;
-    background: rgba(0,0,0,0.22);
-    border-left: 3px solid #fde68a;
-    border-radius: 4px 12px 12px 4px;
-    font-size: 16px; line-height: 1.5;
-  }
-  .mcp-quote b { color: #fde68a; }
-
-  /* 通用 AI Agent 接入 — 紫蓝渐变(跟 MCP 主体一致) */
+  /* 通用 AI Agent 接入 — 紫蓝渐变 */
   .agent {
     position: relative;
-    margin-top: 22px;
+    margin-top: 20px;
     background: linear-gradient(135deg, #312e81 0%, #6366f1 50%, #06b6d4 100%);
     border-radius: 18px;
-    padding: 22px 22px 20px;
+    padding: 20px 20px 18px;
     color: #fff;
     box-shadow: 0 16px 32px rgba(99, 102, 241, 0.32);
     overflow: hidden;
@@ -243,38 +357,38 @@
   }
   .agent-head {
     position: relative;
-    display: flex; align-items: center; gap: 12px;
-    font-size: 19px; font-weight: 800; letter-spacing: 1px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 18px; font-weight: 800; letter-spacing: 1px;
   }
   .agent-head .a-ico {
-    width: 36px; height: 36px; border-radius: 9px;
+    width: 34px; height: 34px; border-radius: 8px;
     background: rgba(255,255,255,0.95);
     display: flex; align-items: center; justify-content: center;
-    font-size: 22px; color: #6366f1;
+    font-size: 20px; color: #6366f1;
   }
   .agent-head .a-tag {
     margin-left: auto;
-    font-size: 12px; font-weight: 700;
+    font-size: 11px; font-weight: 700;
     background: #fde68a; color: #1e1b4b;
     padding: 3px 10px; border-radius: 999px;
     letter-spacing: 1px;
   }
   .agent h3 {
     position: relative;
-    margin-top: 14px;
-    font-size: 28px; font-weight: 900; line-height: 1.25;
+    margin-top: 12px;
+    font-size: 24px; font-weight: 900; line-height: 1.25;
   }
   .agent h3 .hl { color: #fde68a; }
   .agent .agent-sub {
     position: relative;
-    margin-top: 8px;
-    font-size: 15px; line-height: 1.5; color: rgba(255,255,255,0.92);
+    margin-top: 6px;
+    font-size: 14px; line-height: 1.5; color: rgba(255,255,255,0.92);
   }
 
-  /* 微信语音气泡 + AI 回应气泡 */
+  /* 微信对话气泡 */
   .bubbles {
     position: relative;
-    margin-top: 16px;
+    margin-top: 14px;
     display: flex; flex-direction: column; gap: 8px;
   }
   .bubble {
@@ -329,10 +443,10 @@
     50% { transform: scaleY(1); }
   }
 
-  /* 3 步骤小条 */
+  /* 3 步骤 */
   .agent-steps {
     position: relative;
-    margin-top: 16px;
+    margin-top: 14px;
     display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;
   }
   .agent-steps .as {
@@ -353,15 +467,15 @@
     font-size: 12px; font-weight: 700; line-height: 1.3;
   }
 
-  /* 分割线 + 副场景(AI 客户端) */
+  /* 副场景 */
   .mcp-sub {
     position: relative;
-    margin-top: 22px;
-    padding-top: 18px;
+    margin-top: 18px;
+    padding-top: 16px;
     border-top: 1px dashed rgba(255,255,255,0.25);
   }
   .mcp-sub-label {
-    font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.70);
+    font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.70);
     letter-spacing: 1px; margin-bottom: 8px;
   }
   .mcp-sub-row {
@@ -376,12 +490,23 @@
   }
   .mcp-sub-row .ai-pill b { color: #fde68a; font-weight: 800; }
 
-  /* ============ 底部 CTA — 独立大块,不再是浮层 ============ */
+  .mcp-quote {
+    position: relative;
+    margin-top: 18px;
+    padding: 14px 16px;
+    background: rgba(0,0,0,0.22);
+    border-left: 3px solid #fde68a;
+    border-radius: 4px 12px 12px 4px;
+    font-size: 15px; line-height: 1.5;
+  }
+  .mcp-quote b { color: #fde68a; }
+
+  /* 底部 CTA */
   .cta {
-    margin: 36px 32px 0;
+    margin: 32px 28px 0;
     background: linear-gradient(135deg, var(--brand) 0%, #ea580c 50%, #dc2626 100%);
     border-radius: 26px;
-    padding: 36px 28px 30px;
+    padding: 32px 24px 26px;
     color: #fff;
     text-align: center;
     position: relative;
@@ -396,92 +521,151 @@
   }
   .cta .cta-title {
     position: relative;
-    font-size: 36px; font-weight: 900; letter-spacing: 2px;
+    font-size: 30px; font-weight: 900; letter-spacing: 2px;
   }
   .cta .cta-sub {
     position: relative;
-    margin-top: 10px;
-    font-size: 19px; line-height: 1.5; opacity: 0.95;
+    margin-top: 8px;
+    font-size: 17px; line-height: 1.5; opacity: 0.95;
   }
   .cta .cta-sub b { font-weight: 800; }
   .cta .cta-divider {
     position: relative;
-    height: 1px; margin: 24px 0 22px;
+    height: 1px; margin: 20px 0 18px;
     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
   }
   .cta .cta-platforms {
     position: relative;
-    display: flex; justify-content: center; gap: 8px;
+    display: flex; justify-content: center; gap: 6px;
     flex-wrap: wrap;
   }
   .cta .pill {
     background: rgba(255,255,255,0.18);
     border: 1px solid rgba(255,255,255,0.30);
     border-radius: 999px;
-    padding: 8px 16px;
-    font-size: 15px; font-weight: 700;
+    padding: 7px 12px;
+    font-size: 13px; font-weight: 700;
     backdrop-filter: blur(4px);
   }
 
-  /* ============ 底部信息条 — 极简,无浮层 ============ */
+  /* 极简信息条 */
   .footer {
-    margin: 28px 44px 0;
+    margin: 24px 32px 0;
     text-align: center;
   }
   .footer .links {
-    font-size: 15px; color: var(--ink-soft); line-height: 1.7;
+    font-size: 14px; color: var(--ink-soft); line-height: 1.7;
     word-break: break-all;
   }
   .footer .links b { color: var(--brand-deep); font-weight: 700; }
   .footer .copy {
-    margin-top: 12px;
-    font-size: 13px; color: var(--ink-mute); letter-spacing: 1px;
+    margin-top: 10px;
+    font-size: 12px; color: var(--ink-mute); letter-spacing: 1px;
   }
 
-  /* 极窄屏适配 (≤360px,例如老 iPhone SE 1) */
+  /* 极窄屏 */
   @media (max-width: 360px) {
-    .brand-row { padding-top: 40px; }
-    .hero h1 { font-size: 60px; }
-    .mcp h2 { font-size: 32px; }
-    .agent h3 { font-size: 22px; }
-    .cta { padding: 28px 22px 24px; }
-    .cta .cta-title { font-size: 28px; }
+    .hero-screen { padding: 40px 24px 28px; }
+    .hero-title { font-size: 68px; }
+    .hook-question { font-size: 24px; }
+    .voice-wave { padding: 14px 16px; }
+    .voice-wave .waveform { height: 22px; }
+    .stat .n { font-size: 22px; }
+    .mcp h2 { font-size: 30px; }
+    .agent h3 { font-size: 20px; }
+    .hero-cta .btn-primary { font-size: 18px; padding: 16px 18px; }
   }
 </style>
 </head>
 <body>
   <article class="poster" id="poster">
 
-    <div class="deco-dots" aria-hidden="true">
-      <i></i><i></i><i></i><i></i><i></i>
-      <i></i><i></i><i></i><i></i><i></i>
-      <i></i><i></i><i></i><i></i><i></i>
-    </div>
-
-    <!-- Brand -->
-    <header class="brand-row">
-      <div class="icon"><img src="build/icon-256.png" alt="家庭记账" /></div>
-      <div class="name">
-        家庭记账
-        <span class="en">HOME LEDGER · v1.3</span>
+    <!-- ============================================
+         🎯 第一屏 — Hero
+         ============================================ -->
+    <section class="hero-screen">
+      <div class="hero-deco" aria-hidden="true">
+        <i></i><i></i><i></i><i></i>
+        <i></i><i></i><i></i><i></i>
+        <i></i><i></i><i></i><i></i>
       </div>
-    </header>
+      <div class="hero-bg-text" aria-hidden="true">记</div>
 
-    <span class="tag">Windows 桌面端 · 共享账本</span>
+      <!-- 顶部小品牌 -->
+      <div class="mini-brand">
+        <div class="icon"><img src="build/icon-256.png" alt="家庭记账" /></div>
+        <div class="name">
+          家庭记账
+          <span class="en">HOME LEDGER · v1.3</span>
+        </div>
+      </div>
 
-    <!-- 主标题 -->
-    <section class="hero">
-      <h1>
-        <span class="accent">一家一本账</span><br/>
-        <span class="stroke">全家都能记</span>
+      <!-- 痛点问句 — 3 秒内抓注意力 -->
+      <div class="hook-question">
+        还在<span class="strike">手动</span>记账？<br/>
+        打开 App 都要 5 秒。
+      </div>
+
+      <!-- 主标题 — 大字号、双行对比 -->
+      <h1 class="hero-title">
+        <span class="line1">说话就能</span>
+        <span class="line2">记一笔</span>
       </h1>
-      <p class="sub">
-        一台电脑记账，<b>全家都能看到</b>；<br/>
-        数据在云端，<b>永远不丢</b>，换了电脑也还在。
+
+      <!-- 一句话定位 -->
+      <p class="hero-tagline">
+        微信里按住说话 → <b>AI 自动入账</b><br/>
+        不用打字、不用打开 App、不用记
       </p>
+
+      <!-- 语音波演示 — 让人立刻看到"语音记账"画面 -->
+      <div class="voice-wave">
+        <div class="mic">
+          <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M19 11a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21a1 1 0 1 0 2 0v-3.08A7 7 0 0 0 19 11z"/></svg>
+        </div>
+        <div class="waveform" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="label"><b>语音</b>记账中</div>
+      </div>
+
+      <!-- 关键数据三连 — 撑住"可信" -->
+      <div class="stats">
+        <div class="stat">
+          <div class="n">2<span style="font-size:18px">分钟</span></div>
+          <div class="l">接入 MCP</div>
+        </div>
+        <div class="stat">
+          <div class="n">0<span style="font-size:18px">安装</span></div>
+          <div class="l">零门槛</div>
+        </div>
+        <div class="stat">
+          <div class="n">30<span style="font-size:18px">天</span></div>
+          <div class="l">token 有效</div>
+        </div>
+      </div>
+
+      <!-- 主 CTA -->
+      <div class="hero-cta">
+        <a href="https://mcp.240730.xyz/activate" class="btn-primary">
+          立即接入 MCP <span class="arrow">→</span>
+        </a>
+        <a href="https://github.com/wangshaojie/home-ledger/releases" class="btn-secondary">
+          <b>先下载桌面端</b> · 看一眼是什么
+        </a>
+      </div>
+
+      <!-- 滚动提示 -->
+      <div class="scroll-hint">
+        往下看 · 还能挂更多 AI Agent
+        <span class="arrow">↓</span>
+      </div>
     </section>
 
-    <!-- 三大特性 -->
+    <!-- ============================================
+         第二屏 — 三大特性
+         ============================================ -->
     <section class="features">
       <div class="feat a">
         <div class="emoji">🏠</div>
@@ -506,12 +690,13 @@
       </div>
     </section>
 
-    <!-- MCP 模块 -->
+    <!-- ============================================
+         第三屏 — MCP 模块
+         ============================================ -->
     <section class="mcp">
       <div class="mcp-label">⚡ 挂到任意 AI Agent · 说话就能记账</div>
       <h2>让 AI 帮你记账<br/>账就<span class="hl">自动记上了</span></h2>
 
-      <!-- 🚀 通用 AI Agent 接入 — 主场景 -->
       <div class="agent">
         <div class="agent-head">
           <div class="a-ico">🪄</div>
@@ -521,7 +706,6 @@
         <h3>装了 AI Agent 就装上 home-ledger<br/>微信里说话就能记</h3>
         <p class="agent-sub">用户在 WorkBuddy / 微信 ClawBot / QClaw / 任何 AI Agent 里<br/>说一句「帮我安装 home-ledger MCP」就接进来了</p>
 
-        <!-- 微信对话气泡演示(以 ClawBot 为例) -->
         <div class="bubbles">
           <div class="bubble left">
             <span class="b-voice">
@@ -536,7 +720,6 @@
           </div>
         </div>
 
-        <!-- 3 步骤(说人话) -->
         <div class="agent-steps">
           <div class="as">
             <span class="n">1</span>
@@ -553,7 +736,6 @@
         </div>
       </div>
 
-      <!-- 副场景:具体能挂在哪些 AI Agent 上 -->
       <div class="mcp-sub">
         <div class="mcp-sub-label">任何支持 MCP 协议的 AI Agent · 都能挂</div>
         <div class="mcp-sub-row">
@@ -572,16 +754,16 @@
       </div>
     </section>
 
-    <!-- 底部 CTA — 实心块,不再是浮层 -->
+    <!-- 底部 CTA -->
     <section class="cta">
       <div class="cta-title">👉 立即下载 · 永久免费</div>
       <div class="cta-sub">PORTABLE 免安装版 / NSIS 安装版 ·<br/>到 <b>Releases</b> 选最新版双击即跑</div>
       <div class="cta-divider"></div>
       <div class="cta-platforms">
-        <div class="pill">💬 WorkBuddy 微信通道</div>
+        <div class="pill">💬 WorkBuddy 微信</div>
         <div class="pill">💬 微信 ClawBot</div>
         <div class="pill">🤖 Cursor</div>
-        <div class="pill">💬 Claude Desktop</div>
+        <div class="pill">💬 Claude</div>
         <div class="pill">🪄 Mavis</div>
         <div class="pill">🪟 Win 10/11</div>
       </div>

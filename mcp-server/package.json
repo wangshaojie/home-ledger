@@ -1,0 +1,42 @@
+{
+  "name": "home-ledger-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for 家庭记账 - 让 AI agent 通过 Supabase 直接记账,基于短期 access_token 鉴权,绝不接触 service_role",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "home-ledger-mcp": "bin/home-ledger-mcp.js",
+    "home-ledger-mcp-login": "bin/home-ledger-mcp-login.js",
+    "home-ledger-mcp-config": "bin/home-ledger-mcp-config.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node bin/home-ledger-mcp.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "home-ledger",
+    "supabase"
+  ],
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@supabase/supabase-js": "^2.45.4",
+    "keytar": "^7.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "typescript": "^5.6.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

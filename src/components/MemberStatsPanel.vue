@@ -78,22 +78,30 @@ async function loadStats() {
   }
 }
 
-// 监听 expenseStore.revision（数据版本号）：任何筛选变化都会触发 store 的 load()
-// 成功后 revision++，记账/分摊/删除也会 revision++，这里随之聚合一次即可；
-// 不直接监听 filter 明细 + items，否则一次切换会触发两次聚合请求。
-// 另监听家庭成员数量，新增成员后图表出现新柱子。
+// v2026-09-02 修复:首次启动后 loadStats 跑多次
+//   旧实现 watch([expenseStore.revision, familyStore.members.length], { immediate: true })
+//   首次启动 watch 同步跑一次(挂载时 revision=0、members=[]),
+//   然后 App.vue bootstrap 异步推进:
+//     1) family.load() 完成 → members.length 0→N → 触发第 2 次
+//     2) expense.load() 完成 → revision 0→1 → 触发第 3 次
+//   250ms 防抖合并不了"间隔可能数百毫秒的两次异步事件",loading 闪两次/三次。
+//   而且 revision 本来是为 items 原地修改(unshift)设计的兜底,
+//   成员统计图是 RPC 聚合,跟 items 没关系,
+//   "记账/分摊/删除后图也要重算"通过 HomeView 主动调 reload() 即可,
+//   watch 不再依赖 revision。
 //
-// v2026-09-02 修复:首次进页面两次 loadStats
-//   旧实现 onMounted(loadStats) + watch([revision, members.length]) 同时跑,
-//   isFirstWatch 只抑制了 watch 同步初始化那次,members.length 0→N 异步到达
-//   时仍会触发第二次 watch → 两次 loadStats(loading 闪两次)。
-//   "切菜单回来"那条路径 home/stats 是不同路由,组件每次都重建,
-//   切回时 revision 已停在最新值,旧实现靠 onMounted 兜底。
-// 修法:watch 加 immediate:true 替代 onMounted,
-//   防抖 250ms 把"挂载时 immediate 触发 + members 异步到达"合并成一次请求。
+// 修法:watch 只听 filter(用户主动改的) + members.length(新成员柱子),
+//   记账/分摊/编辑/删除由 HomeView 在成功后调 statsPanelRef.reload()。
 let statsTimer: ReturnType<typeof setTimeout> | null = null
 watch(
-  [() => expenseStore.revision, () => familyStore.members.length],
+  [
+    () => expenseStore.filter.range,
+    () => expenseStore.filter.categoryIds.length,
+    () => expenseStore.filter.memberIds.length,
+    () => expenseStore.filter.minAmount,
+    () => expenseStore.filter.maxAmount,
+    () => familyStore.members.length
+  ],
   () => {
     if (statsTimer) clearTimeout(statsTimer)
     statsTimer = setTimeout(() => void loadStats(), 250)
@@ -130,6 +138,9 @@ function onBarClick(memberId: string) {
 const emit = defineEmits<{
   (e: 'jump-to-list', memberId: string): void
 }>()
+
+// 记账/分摊/编辑/删除成功后由 HomeView 主动调一次,绕开 filter watch(用户没改 filter 但图要重算)
+defineExpose({ reload: loadStats })
 
 // 柱条右侧的金额标签：大金额缩写为"万"，避免超出绘图区被裁剪
 function formatBarLabel(v: number) {

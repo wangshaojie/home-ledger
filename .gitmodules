@@ -1,0 +1,3 @@
+[submodule "mcp-activate"]
+	path = mcp-activate
+	url = git@github.com:wangshaojie/home-ledger-mcp-activate.git
