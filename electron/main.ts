@@ -108,11 +108,16 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   try {
     // flushStorageData 的返回值在不同 Electron 版本签名不一致
-    // （有的返回 Promise，有的返回 void 仅支持 callback），这里两种都兼容，
+    // （旧版返回 Promise，新版返回 void 仅支持 callback），这里两种都兼容，
     // 且给同步返回兜底 800ms 后强制退出，避免卡住退出流程
-    const flushResult = session.defaultSession.flushStorageData()
+    // 注意：TypeScript 这里把返回类型推断为 void，所以不能 truthy 判断，
+    // 用 duck-typing（看是否带 .then）来区分同步/异步版本
+    const flushResult: unknown = session.defaultSession.flushStorageData()
     const done = () => app.quit()
-    if (flushResult && typeof (flushResult as Promise<void>).then === 'function') {
+    if (
+      flushResult != null &&
+      typeof (flushResult as { then?: unknown }).then === 'function'
+    ) {
       ;(flushResult as Promise<void>).catch(() => {}).finally(done)
     } else {
       setTimeout(done, 800)
