@@ -57,4 +57,6 @@ export interface DbFamilyMember {
   type: 'adult' | 'child' | 'pet'
   linked_profile_id: string | null
   created_at: string
+  // v2026-09-04 创建者驱离成员用:非空表示已被移出家庭(行保留以支撑历史账单)
+  kicked_at?: string | null
 }

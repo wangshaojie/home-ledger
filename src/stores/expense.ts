@@ -145,6 +145,9 @@ export const useExpenseStore = defineStore('expense', () => {
       memberIds?: string[]
       minAmount?: number
       maxAmount?: number
+      // v2026-09-04:可选时间上界（不含）。"昨天" 这种紧贴今天的 range 必须传，
+      // 否则会把今天 00:00 之后的支出也卷进去，跟列表 SQL 口径不一致。
+      endExclusive?: string | null
     }
   ): Promise<{ memberId: string; total: number }[]> {
     const auth = useAuthStore()
@@ -156,6 +159,7 @@ export const useExpenseStore = defineStore('expense', () => {
       .eq('family_id', fid)
       .is('deleted_at', null)
     if (startDate) q = q.gte('spent_at', startDate)
+    if (extraFilter?.endExclusive) q = q.lt('spent_at', extraFilter.endExclusive)
     if (extraFilter?.categoryIds?.length) q = q.in('category_id', extraFilter.categoryIds)
     if (extraFilter?.memberIds?.length) q = q.in('member_id', extraFilter.memberIds)
     if (extraFilter?.minAmount != null) q = q.gte('amount', extraFilter.minAmount)
@@ -189,6 +193,9 @@ export const useExpenseStore = defineStore('expense', () => {
       memberIds?: string[]
       minAmount?: number
       maxAmount?: number
+      // v2026-09-04:可选时间上界（不含）。"昨天" 这种紧贴今天的 range 必须传，
+      // 否则会把今天 00:00 之后的支出也卷进去，跟列表 SQL 口径不一致。
+      endExclusive?: string | null
     }
   ): Promise<{ memberId: string; total: number }[]> {
     const auth = useAuthStore()
@@ -201,6 +208,7 @@ export const useExpenseStore = defineStore('expense', () => {
       .is('deleted_at', null)
       .not('payer_id', 'is', null)
     if (startDate) q = q.gte('spent_at', startDate)
+    if (extraFilter?.endExclusive) q = q.lt('spent_at', extraFilter.endExclusive)
     if (extraFilter?.categoryIds?.length) q = q.in('category_id', extraFilter.categoryIds)
     if (extraFilter?.memberIds?.length) q = q.in('member_id', extraFilter.memberIds)
     if (extraFilter?.minAmount != null) q = q.gte('amount', extraFilter.minAmount)
@@ -231,6 +239,9 @@ export const useExpenseStore = defineStore('expense', () => {
       memberIds?: string[]
       minAmount?: number
       maxAmount?: number
+      // v2026-09-04:可选时间上界（不含）。"昨天" 这种紧贴今天的 range 必须传，
+      // 否则会把今天 00:00 之后的支出也卷进去，跟列表 SQL 口径不一致。
+      endExclusive?: string | null
     }
   ): Promise<{ memberId: string; total: number }[]> {
     const auth = useAuthStore()
@@ -242,6 +253,7 @@ export const useExpenseStore = defineStore('expense', () => {
       .eq('family_id', fid)
       .is('deleted_at', null)
     if (startDate) q = q.gte('spent_at', startDate)
+    if (extraFilter?.endExclusive) q = q.lt('spent_at', extraFilter.endExclusive)
     if (extraFilter?.categoryIds?.length) q = q.in('category_id', extraFilter.categoryIds)
     if (extraFilter?.memberIds?.length) q = q.in('member_id', extraFilter.memberIds)
     if (extraFilter?.minAmount != null) q = q.gte('amount', extraFilter.minAmount)

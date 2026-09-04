@@ -23,11 +23,17 @@ create table if not exists public.family_members (
   -- linked_profile_id: 仅 adult 才有值。NULL 表示该成员没有自己的账号
   -- 用 on delete set null：profile 删除时保留 family_member 行（变孤儿成员，避免级联删掉所有老账单）
   linked_profile_id uuid references public.profiles(id) on delete set null,
+  -- v2026-09-04 创建者驱离成员用：非空表示已被移出家庭（行保留以支撑历史账单）
+  kicked_at timestamptz,
   created_at timestamptz not null default now(),
   -- 一个家庭不能有两个同名同类型的成员
   -- 注意：NULL 在 unique 中视为不同，所以多个 NULL name + type 不冲突（但 name 不能 NULL，所以这没事）
   unique (family_id, name, type)
 );
+
+-- 兼容：表已存在时（v1.1 老库）补 kicked_at 列
+alter table public.family_members
+  add column if not exists kicked_at timestamptz;
 
 create index if not exists idx_family_members_family on public.family_members (family_id);
 create index if not exists idx_family_members_linked on public.family_members (linked_profile_id);
@@ -101,9 +107,22 @@ begin
     split_part(new.email, '@', 1)
   );
 
-  insert into public.family_members (family_id, name, type, linked_profile_id, created_at)
-  values (new.family_id, new_display_name, 'adult', new.id, now())
-  on conflict (family_id, name, type) do nothing;
+  -- 该家庭已存在该账号对应的成员行（如通过邀请码 join 过）：
+  -- 直接同步显示名到该行，而不是再插一条，否则会撞
+  -- (family_id, linked_profile_id) 部分唯一约束 → duplicate key
+  -- kicked_at = null：被创建者移出后重新加入 → 复活该行（历史账单归属不变）
+  update public.family_members
+  set name = new_display_name, kicked_at = null
+  where family_id = new.family_id
+    and linked_profile_id = new.id;
+
+  -- 家庭里还没有该账号的成员行（刚 join / 首次建）→ 新建；
+  -- 撞 (family_id, name, type) 同名同类型时沿用旧行为跳过
+  if not found then
+    insert into public.family_members (family_id, name, type, linked_profile_id, created_at)
+    values (new.family_id, new_display_name, 'adult', new.id, now())
+    on conflict (family_id, name, type) do nothing;
+  end if;
 
   return new;
 end;

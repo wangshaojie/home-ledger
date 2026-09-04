@@ -62,6 +62,12 @@ onMounted(() => {
     reduceMotion.value = mq.matches
     mq.addEventListener('change', onMqChange)
   }
+  // 注册流程下，注册页刚刚已经发过验证邮件了，verify 页面不要让用户再点一次"发送验证码"
+  // → 直接标记 codeSent=true 并起 60s 倒计时，按钮文案显示"60s 后重发"
+  if (type === 'signup' && route.query.sent === '1') {
+    codeSent.value = true
+    startCountdown()
+  }
   requestAnimationFrame(() => {
     cardVisible.value = true
   })

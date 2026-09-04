@@ -1,5 +1,5 @@
 // MCP server 主文件
-// 暴露 5 个工具给 AI agent:home_ledger_add_expense / list_recent / delete_expense / list_categories / whoami
+// 暴露 6 个工具给 AI agent:add_expense / list_recent / delete_expense / list_categories / list_members / whoami
 // 启动时:1) 读 token  2) 调 verify_mcp_token 确认有效  3) 起 stdio transport
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -13,6 +13,7 @@ import {
   addExpense,
   deleteExpense,
   listCategories,
+  listMembers,
   listRecent,
   verifyToken,
 } from './supabase.js';
@@ -43,17 +44,19 @@ function createServer(): Server {
       {
         name: 'home_ledger_add_expense',
         description:
-          '在家庭记账中记一笔支出,自动归属当前用户所在家庭。' +
-          '需要带分类时:先调 home_ledger_list_categories 拿到 category_id,不要凭空编造。' +
-          '能判断出类别(如早餐/午餐/晚餐/外卖→餐饮;买菜→商超购物)就尽量带上分类。' +
-          '账户默认不传(自动用微信支付);日期默认不传(记当前时刻),仅补记过去某天才填。' +
-          '返回:expense_id(可后续用 home_ledger_delete_expense 删除)。',
+          '在家庭记账中记一笔支出,自动归属当前用户所在家庭。默认值约定:' +
+          '分类不传→自动归"餐饮";账户不传→自动用"微信支付";' +
+          '消费成员不传→默认只有爸爸一人(单选时用单条记录);' +
+          '多人共同消费(如全家吃饭)传多个 member_ids → 按人数均分拆成多条记录;' +
+          '付款人固定默认爸爸;消费时间自动=发起记账的时刻(发任务时间)。' +
+          '需要分类/成员 ID 时先调 home_ledger_list_categories / home_ledger_list_members 获取,不要凭空编造。' +
+          '拿不准就不传,保持默认。返回 expense_id(多人分摊时返回多条,可逐个删除)。',
         inputSchema: {
           type: 'object',
           properties: {
             amount: {
               type: 'number',
-              description: '金额(数字,> 0,<= 10000000,单位:元)',
+              description: '金额(数字,> 0,<= 10000000,单位:元;多人分摊时传总金额)',
             },
             note: {
               type: 'string',
@@ -63,17 +66,19 @@ function createServer(): Server {
               type: 'string',
               description:
                 '分类 ID(可选;必须来自 home_ledger_list_categories 返回的 id;' +
-                '能推断出消费类别(如早/午/晚餐→餐饮)就带上,不传则不归类)',
+                '不传则默认归为"餐饮")',
             },
             account_id: {
               type: 'string',
-              description: '支付账户 ID(可选;不传则默认微信支付,家庭内无同名账户才留空)',
+              description: '支付账户 ID(可选;不传则默认"微信支付")',
             },
-            spent_at: {
-              type: 'string',
+            member_ids: {
+              type: 'array',
+              items: { type: 'string' },
               description:
-                '消费日期 YYYY-MM-DD(可选)。默认【不要填】:不填则自动记录为发起记账的时刻(含时分)。' +
-                '仅当补记过去某天(非今天)的账时才填,如"昨天"或具体日期(会记为该日 00:00)。',
+                '消费成员 ID 列表(可选;多人共同消费如全家吃饭/几个人一起 AA 时才填,' +
+                '会按人数均分并拆成多条记录;ID 必须来自 home_ledger_list_members;' +
+                '不传则默认爸爸一人)',
             },
           },
           required: ['amount'],
@@ -84,6 +89,17 @@ function createServer(): Server {
         description:
           '列出当前用户家庭的全部支出分类(含图标、名称和分类 ID)。' +
           '【记账前先调它】获取 category_id,再调 home_ledger_add_expense 时带上分类。',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'home_ledger_list_members',
+        description:
+          '列出当前用户家庭的消费成员(名字、类型和成员 ID)。' +
+          '【多人共同消费(AA)记账前先调它】获取 member_id 列表,再传给 home_ledger_add_expense 的 member_ids。' +
+          '单人记账不用调,默认爸爸一人。',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -203,29 +219,46 @@ function createServer(): Server {
           note?: string;
           category_id?: string;
           account_id?: string;
-          spent_at?: string;
+          member_ids?: string[];
         };
         if (typeof a.amount !== 'number' || a.amount <= 0) {
           throw new Error('amount 必须是大于 0 的数字');
         }
-        const result = await addExpense(stored.token, {
+        const results = await addExpense(stored.token, {
           amount: a.amount,
           note: a.note,
           category_id: a.category_id,
           account_id: a.account_id,
-          spent_at: a.spent_at,
+          member_ids: Array.isArray(a.member_ids) ? a.member_ids : undefined,
         }, hostname());
+        if (results.length === 1) {
+          const r = results[0];
+          return {
+            content: [
+              {
+                type: 'text',
+                text:
+                  `✅ 记账成功\n` +
+                  `金额: ¥${r.amount}\n` +
+                  `日期: ${r.spent_at}\n` +
+                  `expense_id: ${r.expense_id}\n` +
+                  `家庭: ${r.family_id}\n` +
+                  `创建者: ${r.creator_id}`,
+              },
+            ],
+          };
+        }
+        // 多人分摊:每条一行
+        const lines = results.map(
+          (r) => `- ¥${r.amount} | id=${r.expense_id} | 日期 ${r.spent_at}`,
+        );
         return {
           content: [
             {
               type: 'text',
               text:
-                `✅ 记账成功\n` +
-                `金额: ¥${result.amount}\n` +
-                `日期: ${result.spent_at}\n` +
-                `expense_id: ${result.expense_id}\n` +
-                `家庭: ${result.family_id}\n` +
-                `创建者: ${result.creator_id}`,
+                `✅ 记账成功,已按 ${results.length} 人均分拆条(可对整组分摊分别删除):\n` +
+                `${lines.join('\n')}`,
             },
           ],
         };
@@ -272,6 +305,26 @@ function createServer(): Server {
             {
               type: 'text',
               text: `当前家庭分类(${cats.length}):\n${lines.join('\n')}`,
+            },
+          ],
+        };
+      }
+
+      if (name === 'home_ledger_list_members') {
+        const members = await listMembers(stored.token);
+        if (members.length === 0) {
+          return { content: [{ type: 'text', text: '当前家庭还没有成员。' }] };
+        }
+        const typeLabel = (t: string): string =>
+          t === 'adult' ? '大人' : t === 'child' ? '小孩' : t === 'pet' ? '宠物' : t;
+        const lines = members.map(
+          (m) => `- ${m.name} (${typeLabel(m.member_type)})${m.is_me ? ' [我]' : ''} | id=${m.id}`,
+        );
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `当前家庭成员(${members.length}):\n${lines.join('\n')}`,
             },
           ],
         };

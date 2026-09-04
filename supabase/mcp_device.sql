@@ -22,10 +22,11 @@
 --   - verify_mcp_token(p_token):                SECURITY DEFINER,验 token 返 user_id
 --   - revoke_mcp_device(p_device_id):           用户吊销自己的某台设备
 --   - mcp_check_rate_limit(...):                MCP 限流辅助
---   - mcp_add_expense(...):                     写账专用 RPC(走 token,不直连表)
+--   - mcp_add_expense(...):                     写账专用 RPC(走 token,不直连表;支持多成员均分)
 --   - mcp_list_recent(...):                     查最近账单
---   - mcp_delete_expense(...):                  软删账单
+--   - mcp_delete_expense(...):                  软删账单(带 group_id 时删整组)
 --   - mcp_list_categories(...):                 列当前家庭支出分类(记账前取 category_id)
+--   - mcp_list_members(...):                    列当前家庭消费成员(记账前取 member_id)
 -- ========================================
 
 -- ===========================
@@ -287,7 +288,9 @@ grant execute on function public.mcp_check_rate_limit(uuid, text) to anon, authe
 --      - 写审计日志
 --      - 限流(30/min)
 -- ========================================
+-- 兼容旧版(7 参,无 p_member_ids)一并删除,避免函数重载导致旧逻辑残留
 drop function if exists public.mcp_add_expense(text, numeric, text, uuid, uuid, date, text);
+drop function if exists public.mcp_add_expense(text, numeric, text, uuid, uuid, date, text, uuid[]);
 create function public.mcp_add_expense(
   p_token text,
   p_amount numeric,
@@ -295,7 +298,8 @@ create function public.mcp_add_expense(
   p_category_id uuid,
   p_account_id uuid,
   p_spent_at date,
-  p_device_fingerprint text default null
+  p_device_fingerprint text default null,
+  p_member_ids uuid[] default null
 )
 returns table (expense_id uuid, family_id uuid, creator_id uuid, amount numeric, spent_at date)
 language plpgsql
@@ -310,6 +314,12 @@ declare
   v_family_id uuid;
   v_default_payer uuid;
   v_spent_at timestamptz;
+  v_member_ids uuid[];
+  v_n int;
+  v_idx int;
+  v_per numeric;
+  v_amt numeric;
+  v_group_id uuid;
   v_result record;
 begin
   -- 1. 验 token
@@ -366,6 +376,15 @@ begin
     raise exception 'category_id 不存在或不属于当前家庭' using errcode = '23514';
   end if;
 
+  -- 5.5 未指定分类时默认"餐饮"(用户约定;取家庭内 name=餐饮 排序第一个,没有则保持 NULL)
+  if p_category_id is null then
+    select c.id into p_category_id
+    from public.categories c
+    where c.family_id = v_family_id and c.name = '餐饮'
+    order by c.sort_order, c.created_at
+    limit 1;
+  end if;
+
   -- 6. 校验 account_id 必须同家庭(null 允许)
   if p_account_id is not null and not exists (
     select 1 from public.payment_accounts pa
@@ -382,44 +401,106 @@ begin
     limit 1;
   end if;
 
-  -- 7. 找 family_member 写 payer_id(走默认)
+  -- 7. 默认付款人(与成员解耦,通常爸爸):token 用户在家庭里的成员记录,
+  --    找不到(如用户没绑成员)则取家庭第一个成员兜底
   select fm.id into v_default_payer
   from public.family_members fm
   where fm.linked_profile_id = v_user and fm.family_id = v_family_id
   limit 1;
 
-  -- 8. INSERT(走原 expenses RLS + 触发器,creator_id 强制为 v_user,family_id 强制为 v_family_id)
-  insert into public.expenses (family_id, creator_id, member_id, amount, note, category_id, account_id, payer_id, spent_at)
-  values (v_family_id, v_user, v_default_payer, p_amount, p_note, p_category_id, p_account_id, v_default_payer, v_spent_at);
+  if v_default_payer is null then
+    select fm.id into v_default_payer
+    from public.family_members fm
+    where fm.family_id = v_family_id
+    order by fm.created_at
+    limit 1;
+  end if;
 
-  -- 查刚插入的记录(不用 returning,避免触发器上下文列歧义)
-  select e.id, e.family_id, e.creator_id, e.amount, e.spent_at
-    into v_result
-  from public.expenses e
-  where e.creator_id = v_user
-    and e.family_id = v_family_id
-    and e.amount = p_amount
-    and e.spent_at = v_spent_at
-    and e.deleted_at is null
-  order by e.created_at desc
-  limit 1;
+  -- 7.5 消费成员列表(可多选):
+  --     未指定/空 → 默认只有 token 用户对应成员(通常爸爸)一人,与 App 单人选自己一致
+  --     指定 → 必须全部属于当前家庭,且去重;多人时按人数均分拆条(最后一人补齐差额)
+  if p_member_ids is null or cardinality(p_member_ids) = 0 then
+    v_member_ids := array[v_default_payer];
+  else
+    v_member_ids := p_member_ids;
+    if exists (
+      select 1 from unnest(v_member_ids) mid
+      where mid is null
+         or not exists (
+              select 1 from public.family_members fm
+              where fm.id = mid and fm.family_id = v_family_id
+            )
+    ) then
+      raise exception '存在不属于当前家庭的消费成员' using errcode = '23514';
+    end if;
+    select array_agg(mid) into v_member_ids
+    from (
+      select distinct mid from unnest(v_member_ids) mid where mid is not null
+    ) t;
+  end if;
+
+  v_n := cardinality(v_member_ids);
+
+  -- 8. INSERT:单人(默认)落单条无 group_id;多人均分拆多条共享 group_id
+  --    (走原 expenses RLS + 触发器,creator_id 强制为 v_user,family_id 强制为 v_family_id;
+  --     不用 returning,避免触发器上下文列歧义)
+  if v_n = 1 then
+    insert into public.expenses (family_id, creator_id, member_id, amount, note, category_id, account_id, payer_id, spent_at)
+    values (v_family_id, v_user, v_member_ids[1], p_amount, p_note, p_category_id, p_account_id, v_default_payer, v_spent_at);
+
+    select e.id, e.family_id, e.creator_id, e.amount, e.spent_at
+      into v_result
+    from public.expenses e
+    where e.creator_id = v_user
+      and e.family_id = v_family_id
+      and e.amount = p_amount
+      and e.spent_at = v_spent_at
+      and e.deleted_at is null
+    order by e.created_at desc
+    limit 1;
+  else
+    -- 多人分摊:与 App equalSplits 一致——人均 round2(总额/人数),最后一人补齐差额
+    v_group_id := uuid_generate_v4();
+    v_per := round(p_amount / v_n, 2);
+    for v_idx in 1..v_n loop
+      if v_idx = v_n then
+        v_amt := round(p_amount - v_per * (v_n - 1), 2);
+      else
+        v_amt := v_per;
+      end if;
+      if v_amt > 0 then
+        insert into public.expenses (family_id, creator_id, member_id, amount, note, category_id, account_id, payer_id, spent_at, group_id)
+        values (v_family_id, v_user, v_member_ids[v_idx], v_amt, p_note, p_category_id, p_account_id, v_default_payer, v_spent_at, v_group_id);
+      end if;
+    end loop;
+  end if;
 
   -- 9. 写审计
   insert into public.mcp_audit_log(user_id, device_id, tool_name, action, params, result)
   values (v_user, v_device_id, 'mcp_add_expense', 'add_expense',
           jsonb_build_object('amount', p_amount, 'note', p_note,
                              'category_id', p_category_id, 'account_id', p_account_id,
-                             'spent_at', v_spent_at, 'device', v_device_name,
+                             'spent_at', v_spent_at, 'member_ids', v_member_ids,
+                             'group_id', v_group_id, 'device', v_device_name,
                              'fingerprint', p_device_fingerprint),
           'ok');
 
-  return query select v_result.id, v_result.family_id, v_result.creator_id, v_result.amount, v_result.spent_at::date;
+  -- 10. 返回:单人 1 行;多人返回整组分摊记录(各自 expense_id 与分摊金额)
+  if v_n = 1 then
+    return query select v_result.id, v_result.family_id, v_result.creator_id, v_result.amount, v_result.spent_at::date;
+  else
+    return query
+    select e.id, e.family_id, e.creator_id, e.amount, e.spent_at::date
+    from public.expenses e
+    where e.group_id = v_group_id and e.deleted_at is null
+    order by e.amount desc;
+  end if;
 end;
 $$;
 
 -- mcp_add_expense 不走 auth.uid(),靠 token 自身,所以给 anon + authenticated
 -- 攻击面分析:即使 anon 拿到 token 也只能操作该 user 家庭,且所有写都有审计
-grant execute on function public.mcp_add_expense(text, numeric, text, uuid, uuid, date, text) to anon, authenticated;
+grant execute on function public.mcp_add_expense(text, numeric, text, uuid, uuid, date, text, uuid[]) to anon, authenticated;
 
 -- ===========================
 -- 8. mcp_list_recent(p_token, p_limit)
@@ -605,6 +686,58 @@ $$;
 grant execute on function public.mcp_list_categories(text) to anon, authenticated;
 
 -- ===========================
+-- 12. mcp_list_members(p_token)
+--     列当前用户家庭的消费成员(供 AI 记账时选"谁消费",支持多人均分)
+-- ========================================
+drop function if exists public.mcp_list_members(text);
+create function public.mcp_list_members(p_token text)
+returns table (
+  id uuid,
+  name text,
+  member_type text,
+  is_me boolean
+)
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_user uuid;
+  v_device_id uuid;
+  v_device_name text;
+  v_family_id uuid;
+begin
+  select t.user_id, t.device_id, t.device_name
+    into v_user, v_device_id, v_device_name
+  from public.verify_mcp_token(p_token) t;
+
+  -- 读操作限流
+  if not public.mcp_check_rate_limit(v_user, 'list_members') then
+    raise exception '请求过于频繁' using errcode = '23514';
+  end if;
+
+  select p.family_id into v_family_id from public.profiles p where p.id = v_user;
+  if v_family_id is null then
+    raise exception '当前用户未加入任何家庭' using errcode = '23514';
+  end if;
+
+  return query
+  select fm.id, fm.name, fm.type,
+         (fm.linked_profile_id = v_user) as is_me
+  from public.family_members fm
+  where fm.family_id = v_family_id
+  order by fm.created_at;
+
+  insert into public.mcp_audit_log(user_id, device_id, tool_name, action, params, result)
+  values (v_user, v_device_id, 'mcp_list_members', 'list_members',
+          jsonb_build_object('device', v_device_name),
+          'ok');
+end;
+$$;
+
+grant execute on function public.mcp_list_members(text) to anon, authenticated;
+
+-- ===========================
 -- 10. 验证输出
 -- ========================================
 do $$
@@ -622,8 +755,8 @@ begin
   where pronamespace = 'public'::regnamespace
     and proname in ('issue_mcp_token','verify_mcp_token','revoke_mcp_device',
                     'mcp_check_rate_limit','mcp_add_expense','mcp_list_recent','mcp_delete_expense',
-                    'mcp_list_categories');
-  raise notice 'mcp 相关 RPC 数量: % (期望 8)', v_rpc_count;
+                    'mcp_list_categories','mcp_list_members');
+  raise notice 'mcp 相关 RPC 数量: % (期望 9)', v_rpc_count;
 
   raise notice '--- 验证 grant ---';
   raise notice 'issue_mcp_token: anon 应无,authenticated 应有';

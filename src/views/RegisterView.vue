@@ -63,7 +63,7 @@ async function submit() {
   submitting.value = false
   if (r.ok) {
     notify.success(r.message)
-    router.push({ name: 'verify-email', query: { type: 'signup', email: email.value } })
+    router.push({ name: 'verify-email', query: { type: 'signup', email: email.value, sent: '1' } })
   } else {
     notify.error(r.message)
     triggerShake()

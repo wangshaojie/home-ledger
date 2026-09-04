@@ -3,7 +3,7 @@
  * v2026-09-03 视觉对齐 dark-page 设计系统
  * 创建/加入家庭:必须先加入家庭才能记账
  */
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { notify } from '@/lib/notify'
@@ -19,6 +19,19 @@ const displayName = ref(auth.profile?.display_name || (auth.profile?.email?.spli
 const submitting = ref(false)
 const cardVisible = ref(false)
 const shake = ref(false)
+
+// 邀请码加入家庭：electron 默认禁用 window.prompt（Chromium 行为），
+// 用 inline 表单 + dialog 状态自己渲染
+const inviteDialogOpen = ref(false)
+const inviteCode = ref('')
+const inviteInputRef = ref<HTMLInputElement | null>(null)
+async function openInviteDialog() {
+  inviteCode.value = ''
+  inviteDialogOpen.value = true
+  // nextTick 后 focus 输入框（dom 还没渲染前 ref 是 null）
+  await nextTick()
+  inviteInputRef.value?.focus()
+}
 
 const familyNameValid = computed(() => {
   const n = familyName.value.trim()
@@ -96,8 +109,17 @@ async function submit() {
 }
 
 async function joinByInvite() {
-  const code = (window.prompt('请输入 6 位邀请码') || '').trim().toUpperCase()
-  if (!code) return
+  // electron 默认 window.prompt 返回 null（Chromium 行为），改用自渲染 inline 对话框
+  await openInviteDialog()
+}
+
+async function confirmJoinByInvite() {
+  const code = inviteCode.value.trim().toUpperCase()
+  if (!code) {
+    notify.warning('请输入邀请码')
+    return
+  }
+  inviteDialogOpen.value = false
   try {
     await ElMessageBox.confirm(
       `将加入邀请码为 ${code} 的家庭。确认继续吗？`,
@@ -277,5 +299,35 @@ async function joinByInvite() {
         <li>家庭成员可在「设置」中查看邀请码</li>
       </ul>
     </main>
+
+    <!-- 邀请码输入对话框（Electron 默认禁用 window.prompt，自渲染） -->
+    <div v-if="inviteDialogOpen" class="invite-overlay" @click.self="inviteDialogOpen = false">
+      <div class="invite-dialog" role="dialog" aria-modal="true" aria-label="输入邀请码">
+        <h3 class="invite-title">输入邀请码</h3>
+        <p class="invite-sub">向家庭管理员索取 6 位邀请码</p>
+        <input
+          ref="inviteInputRef"
+          v-model="inviteCode"
+          class="invite-input"
+          type="text"
+          inputmode="text"
+          maxlength="6"
+          placeholder="6 位邀请码"
+          autocomplete="off"
+          autofocus
+          @keyup.enter="confirmJoinByInvite"
+          @keyup.escape="inviteDialogOpen = false"
+        />
+        <div class="invite-actions">
+          <button type="button" class="invite-btn invite-btn--ghost" @click="inviteDialogOpen = false">取消</button>
+          <button
+            type="button"
+            class="invite-btn invite-btn--primary"
+            :disabled="!inviteCode.trim()"
+            @click="confirmJoinByInvite"
+          >加入</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

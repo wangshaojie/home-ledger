@@ -20,6 +20,27 @@ const remember = ref(true)
 const shake = ref(false)
 const cardVisible = ref(false)
 
+/**
+ * v2026-09-04：记住上次登录邮箱 —— 退出登录回到本页仍预填。
+ * 与「30 天免登录」互不影响：这是独立的本地记忆，随输入实时保存，
+ * 用户手动清空邮箱即清除记忆；设置里的「清除本地数据」也会一并清掉
+ * （homeledger_ 前缀在 wipeAllLocalData 的清理范围内）。
+ */
+const LAST_EMAIL_KEY = 'homeledger_last_login_email'
+function restoreLastEmail() {
+  try {
+    const saved = localStorage.getItem(LAST_EMAIL_KEY)
+    if (saved) email.value = saved
+  } catch {}
+}
+function persistEmailInput() {
+  try {
+    const v = email.value.trim()
+    if (v) localStorage.setItem(LAST_EMAIL_KEY, v)
+    else localStorage.removeItem(LAST_EMAIL_KEY)
+  } catch {}
+}
+
 const emailValid = computed(() => /^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(email.value))
 const canSubmit = computed(
   () => emailValid.value && password.value.length >= 6 && !submitting.value
@@ -31,6 +52,7 @@ function onMqChange(e: MediaQueryListEvent) {
   reduceMotion.value = e.matches
 }
 onMounted(() => {
+  restoreLastEmail()
   if (typeof window !== 'undefined' && window.matchMedia) {
     mq = window.matchMedia('(prefers-reduced-motion: reduce)')
     reduceMotion.value = mq.matches
@@ -165,6 +187,7 @@ function goForgot() {
               autocomplete="email"
               spellcheck="false"
               :disabled="submitting"
+              @input="persistEmailInput"
             />
             <span v-if="emailValid" class="field-check" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">

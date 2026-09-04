@@ -56,6 +56,8 @@ create table public.expenses (
   spent_at timestamptz not null,
   note text check (char_length(note) <= 200),
   image_urls text[] default '{}',
+  -- v2026-09-01 多人分摊:同一组子记录共享 group_id,NULL 表示普通单条
+  group_id uuid,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
@@ -65,6 +67,7 @@ create index idx_expenses_family_spent on public.expenses(family_id, spent_at de
 create index idx_expenses_family_member on public.expenses(family_id, member_id);
 create index idx_expenses_family_category on public.expenses(family_id, category_id);
 create index idx_expenses_creator on public.expenses(creator_id);
+create index idx_expenses_group on public.expenses(group_id);
 
 -- 6) 自动维护 updated_at
 create or replace function public.handle_updated_at()

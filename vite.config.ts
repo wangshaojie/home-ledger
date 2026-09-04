@@ -35,7 +35,9 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // @@ 指项目根，给 SettingsView 直接 import package.json 用
+      '@@': fileURLToPath(new URL('./', import.meta.url))
     }
   },
   server: {

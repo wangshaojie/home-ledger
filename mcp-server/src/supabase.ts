@@ -61,7 +61,13 @@ export interface AddExpenseArgs {
   note?: string;
   category_id?: string;
   account_id?: string;
-  spent_at?: string; // YYYY-MM-DD
+  // 消费成员(可多选;多人时按人数均分拆成多条记录,共享 group_id)。
+  // 不传/空 → 默认只有当前用户对应成员一人(通常爸爸)。
+  // ID 必须来自 mcp_list_members。
+  member_ids?: string[];
+  // 注意:刻意不提供 spent_at——消费时间一律由数据库落"发任务时刻(now)",
+  // 避免 AI 自行填错日期(曾出现落成当日 00:00 或错误日期)。
+  // 如需补记历史某天,走单独的后备手段,不要在这里放开日期入口。
 }
 
 export interface AddExpenseResult {
@@ -72,11 +78,12 @@ export interface AddExpenseResult {
   spent_at: string;
 }
 
+// 返回多行:单人 1 行;多人分摊时每人一条(amount=分摊金额)
 export async function addExpense(
   token: string,
   args: AddExpenseArgs,
   deviceFingerprint?: string,
-): Promise<AddExpenseResult> {
+): Promise<AddExpenseResult[]> {
   const c = await getClient();
   const { data, error } = await c.rpc('mcp_add_expense', {
     p_token: token,
@@ -84,8 +91,9 @@ export async function addExpense(
     p_note: args.note ?? null,
     p_category_id: args.category_id ?? null,
     p_account_id: args.account_id ?? null,
-    p_spent_at: args.spent_at ?? null,
+    // p_spent_at 不传 → 数据库按发任务时刻(now)落库
     p_device_fingerprint: deviceFingerprint ?? null,
+    p_member_ids: args.member_ids && args.member_ids.length > 0 ? args.member_ids : null,
   });
   if (error) {
     throw new Error(`记账失败: ${error.message}`);
@@ -93,7 +101,7 @@ export async function addExpense(
   if (!data || data.length === 0) {
     throw new Error('记账失败: 返回空结果');
   }
-  return data[0] as AddExpenseResult;
+  return data as AddExpenseResult[];
 }
 
 // ===========================
@@ -157,4 +165,24 @@ export async function listCategories(token: string): Promise<CategoryItem[]> {
     throw new Error(`查询分类失败: ${error.message}`);
   }
   return (data ?? []) as CategoryItem[];
+}
+
+// ===========================
+// 7. mcp_list_members
+//    家庭消费成员清单(记账时选"谁消费",支持多人均分)
+// ===========================
+export interface MemberItem {
+  id: string;
+  name: string;
+  member_type: string; // adult / child / pet
+  is_me: boolean;
+}
+
+export async function listMembers(token: string): Promise<MemberItem[]> {
+  const c = await getClient();
+  const { data, error } = await c.rpc('mcp_list_members', { p_token: token });
+  if (error) {
+    throw new Error(`查询成员失败: ${error.message}`);
+  }
+  return (data ?? []) as MemberItem[];
 }

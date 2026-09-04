@@ -46,6 +46,8 @@ export const useFamilyStore = defineStore('family', () => {
         .from('family_members')
         .select('*')
         .eq('family_id', fid)
+        // v2026-09-04:过滤被创建者移出的成员(kicked_at 非空;行保留仅用于历史账单 join)
+        .is('kicked_at', null)
         .order('type', { ascending: true })  // adult 在前
         .order('created_at', { ascending: true })
     ])
@@ -113,7 +115,7 @@ export const useFamilyStore = defineStore('family', () => {
 
   /**
    * 删除成员
-   * - 有 linked_profile_id 的 adult 不能直接删（要他自己先离开家庭）
+   * - 有 linked_profile_id 的 adult 不能直接删（要他自己先离开家庭，或由创建者移出）
    * - 删除 child/pet 自由
    */
   async function removeMember(id: string): Promise<{ ok: boolean; message?: string }> {
@@ -127,10 +129,33 @@ export const useFamilyStore = defineStore('family', () => {
     return { ok: true, message: '已删除' }
   }
 
+  /**
+   * v2026-09-04 创建者强制移出已关联账号的成员（后端 RPC kick_family_member）
+   * - 仅家庭创建者可调；后端会清空对方 profiles.family_id（ta 立即失去访问）
+   * - 对方 family_member 行打 kicked_at 软移出（保留给历史账单），本列表即隐藏
+   */
+  async function kickMember(id: string): Promise<{ ok: boolean; message?: string }> {
+    const { error } = await supabase.rpc('kick_family_member', { p_member_id: id })
+    if (error) return { ok: false, message: error.message }
+    members.value = members.value.filter((m) => m.id !== id)
+    return { ok: true, message: '已移出家庭' }
+  }
+
   function reset() {
     family.value = null
     members.value = []
   }
 
-  return { family, members, inviteCode, loading, load, addMember, renameMember, removeMember, reset }
+  return {
+    family,
+    members,
+    inviteCode,
+    loading,
+    load,
+    addMember,
+    renameMember,
+    removeMember,
+    kickMember,
+    reset
+  }
 })

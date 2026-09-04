@@ -173,13 +173,13 @@ export const useAuthStore = defineStore('auth', () => {
    * 才标 true（注册才算完整完成）。
    */
   async function signUp(email: string) {
+    // 不要传 emailRedirectTo：传了会强制走 Magic Link 邮件（"Confirm your email address" 链接），
+    // 去掉后 Supabase 才发 6 位数字 OTP 验证码。
+    // 当前流程是用户在 verify 页面手动输 OTP，不需要链接回调。
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        shouldCreateUser: true,
-        // 用户点邮件链接时的回调路径。verifyEmailView 会处理
-        emailRedirectTo:
-          typeof window !== 'undefined' ? window.location.origin + '/#/verify-email?type=signup' : undefined
+        shouldCreateUser: true
       }
     })
     if (error) return { ok: false, message: errText(error, '注册失败') }

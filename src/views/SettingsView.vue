@@ -8,6 +8,11 @@ import { useExpenseStore } from '@/stores/expense'
 import { useRouter } from 'vue-router'
 import { notify } from '@/lib/notify'
 import { displayNameOf } from '@/lib/displayName'
+import pkg from '@@/package.json'
+
+// 当前版本号 — 直接从 package.json import，build 时 Vite 会把它打包进 chunk
+// 单一来源：CI 发版时改 package.json version，UI 自动同步
+const APP_VERSION: string = pkg.version
 
 const auth = useAuthStore()
 const familyStore = useFamilyStore()
@@ -87,6 +92,34 @@ async function removeMember(id: string, name: string) {
   const r = await familyStore.removeMember(id)
   if (r.ok) notify.success(r.message || '已删除')
   else notify.error(r.message || '删除失败')
+}
+
+/**
+ * v2026-09-04 创建者强制移出已关联账号的成员（如通过邀请码加入的家人）
+ */
+async function kickMember(id: string, name: string) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要将「${name}」移出家庭吗？\n\nta 将无法再查看本家庭的任何账单；ta 名下已有的历史账单仍保留在家庭中。\n\nta 之后如想回来，可用原邀请码重新加入。`,
+      '移出成员',
+      {
+        type: 'warning',
+        confirmButtonText: '移出',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+  } catch {
+    return
+  }
+  const r = await familyStore.kickMember(id)
+  if (r.ok) {
+    notify.success(r.message || '已移出')
+    // 重新拉取,保证 HomeView 等页面的成员下拉立即同步
+    await familyStore.load()
+  } else {
+    notify.error(r.message || '移出失败')
+  }
 }
 
 async function saveFamilyName() {
@@ -290,6 +323,25 @@ async function logout() {
   router.push({ name: 'login' })
 }
 
+async function checkForUpdate() {
+  // electron-updater 暴露在 window.electronAPI（preload.ts 注入）
+  if (!window.electronAPI?.checkForUpdates) {
+    notify.warning('当前环境不支持更新检查（仅桌面端可用）')
+    return
+  }
+  notify.info('正在检查更新...')
+  const r = await window.electronAPI.checkForUpdates()
+  if (!r.ok) {
+    notify.error(r.message || '检查更新失败')
+    return
+  }
+  if (r.available) {
+    notify.success(`发现新版本 v${r.version}，稍后会弹出更新窗口`)
+  } else {
+    notify.success(`当前已是最新版本 v${r.currentVersion || APP_VERSION}`)
+  }
+}
+
 async function wipeLocalData() {
   try {
     await ElMessageBox.confirm(
@@ -490,6 +542,15 @@ async function wipeLocalData() {
             删除
           </el-button>
         </span>
+        <!-- v2026-09-04 创建者可移出通过邀请码加入的成员(linked 账号、非自己) -->
+        <span
+          v-else-if="isCreator && m.linked_profile_id !== auth.user?.id"
+          class="member-actions"
+        >
+          <el-button text type="danger" size="small" @click="kickMember(m.id, m.name)">
+            移出
+          </el-button>
+        </span>
       </div>
       <div v-if="familyMembers.length === 0" class="empty-mini">暂无成员</div>
 
@@ -532,6 +593,61 @@ async function wipeLocalData() {
         </el-button>
       </template>
     </el-dialog>
+
+    <div class="section">
+      <div class="section-title"><el-icon><InfoFilled /></el-icon>关于</div>
+
+      <div class="about-brand">
+        <div class="about-logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="22" height="22" fill="none">
+            <path
+              d="M16 4 L28 13 L28 27 C28 28.1 27.1 29 26 29 L19 29 L19 20 C19 19.4 18.6 19 18 19 L14 19 C13.4 19 13 19.4 13 20 L13 29 L6 29 C4.9 29 4 28.1 4 27 L4 13 Z"
+              fill="#fff"
+              fill-opacity="0.95"
+            />
+          </svg>
+        </div>
+        <div class="about-text">
+          <div class="about-name">家庭记账</div>
+          <div class="about-version">
+            v{{ APP_VERSION }}
+            <span class="version-tag">桌面端</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="section-hint" style="margin-top: 14px">
+        一个本地优先的轻量家庭账本：账目云端同步、家人协作、统计可视化，
+        支持通过 MCP 把 AI 助手接入你的账本。
+      </p>
+
+      <div class="about-meta">
+        <div class="meta-row">
+          <span class="meta-label">当前版本</span>
+          <span class="meta-value">v{{ APP_VERSION }}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">运行平台</span>
+          <span class="meta-value">Windows · 桌面端</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">数据存储</span>
+          <span class="meta-value">Supabase 云端 · 本地 IndexedDB 缓存</span>
+        </div>
+      </div>
+
+      <el-divider />
+
+      <div class="section-sub">检查更新</div>
+      <p class="section-hint">
+        新版本会通过 GitHub Releases 发布，点击下方按钮手动检查。
+        也可以在主程序收到更新提示时一键安装。
+      </p>
+      <el-button type="primary" plain @click="checkForUpdate">
+        <el-icon><Refresh /></el-icon>
+        <span style="margin-left: 4px">检查更新</span>
+      </el-button>
+    </div>
 
     <div class="section">
       <div class="section-title"><el-icon><Collection /></el-icon>分类管理</div>
@@ -613,6 +729,75 @@ async function wipeLocalData() {
   color: transparent;
 }
 .page-sub { color: var(--color-text-soft); font-size: 13px; margin: 0; }
+
+.about-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.about-logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #ff8f4d, #f56c2c);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 4px 12px rgba(245, 108, 44, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+}
+.about-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.about-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: 0.3px;
+}
+.about-version {
+  font-size: 13px;
+  color: var(--color-text-soft);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+.version-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+}
+
+.about-meta {
+  margin-top: 6px;
+  background: var(--color-bg);
+  border-radius: 10px;
+  padding: 4px 14px;
+}
+.meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--color-border);
+}
+.meta-row:last-child { border-bottom: none; }
+.meta-label { color: var(--color-text-soft); }
+.meta-value {
+  color: var(--color-text);
+  font-weight: 500;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
 
 .section {
   background: #fff;
