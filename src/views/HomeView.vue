@@ -477,23 +477,62 @@ async function submitForm() {
         }
       } else {
         // 单条编辑
-        const r = await store.update(editingId.value, {
-          amount: amt,
-          categoryId: form.value.categoryId,
-          accountId: form.value.accountId,
-          memberId: form.value.memberIds[0],
-          payerId: form.value.payerId,
-          spentAt: spentAtDate.toISOString(),
-          note: form.value.note.trim().slice(0, 200),
-          tags: form.value.tags
-        })
-        if (r.ok) {
-          markCategoryUsed(familyStore.family?.id, form.value.categoryId)
-          closeForm()
-          notify.success(r.message)
-          void statsPanelRef.value?.reload()
+        if (form.value.memberIds.length > 1) {
+          // v2026-09-07 原单条账被多选:自动转为分摊(删原 + addShared 新分摊组,group_id 重新生成)
+          if (form.value.splitMode === 'custom') {
+            const total = splitTotal.value
+            if (Math.abs(total - amt) > 0.01) {
+              notify.error(`分摊金额合计 ¥${total.toFixed(2)} 与总金额 ¥${amt.toFixed(2)} 不一致，请调整`)
+              return
+            }
+          }
+          const splits = splitPreview.value
+            .map((s) => ({ memberId: s.memberId, amount: round2(s.amount) }))
+            .filter((s) => s.amount > 0)
+          // 1) 删原单条
+          const del = await store.remove(editingId.value)
+          if (!del.ok) {
+            notify.error('删除原账单失败: ' + del.message)
+            return
+          }
+          // 2) 新增分摊组
+          const add = await store.addShared({
+            splits,
+            payerId: form.value.payerId,
+            categoryId: form.value.categoryId,
+            accountId: form.value.accountId,
+            spentAt: spentAtDate.toISOString(),
+            note: form.value.note.trim().slice(0, 200),
+            tags: form.value.tags
+          })
+          if (add.ok) {
+            markCategoryUsed(familyStore.family?.id, form.value.categoryId)
+            closeForm()
+            notify.success('已转为多人分摊')
+            void statsPanelRef.value?.reload()
+          } else {
+            notify.error(add.message)
+          }
         } else {
-          notify.error(r.message)
+          // 仍是单条,正常 update
+          const r = await store.update(editingId.value, {
+            amount: amt,
+            categoryId: form.value.categoryId,
+            accountId: form.value.accountId,
+            memberId: form.value.memberIds[0],
+            payerId: form.value.payerId,
+            spentAt: spentAtDate.toISOString(),
+            note: form.value.note.trim().slice(0, 200),
+            tags: form.value.tags
+          })
+          if (r.ok) {
+            markCategoryUsed(familyStore.family?.id, form.value.categoryId)
+            closeForm()
+            notify.success(r.message)
+            void statsPanelRef.value?.reload()
+          } else {
+            notify.error(r.message)
+          }
         }
       }
     } else if (form.value.memberIds.length > 1) {
@@ -631,9 +670,9 @@ function onMembersChange() {
 }
 
 /**
- * 消费成员下拉框值统一入口：
- * - 新增（多选）：直接是 string[]
- * - 编辑（单选）：是 string，需包回数组，保持 form.memberIds 始终为数组
+ * v2026-09-07 消费成员下拉框值统一入口：
+ * - 编辑/新增(都是多选)→ 直接是 string[],赋给 form.memberIds
+ * - 保留 v/v[] 兼容以防老逻辑被别处调
  */
 function onMemberSelectUpdate(v: string | string[]) {
   form.value.memberIds = Array.isArray(v) ? v : (v ? [v] : [])
@@ -984,12 +1023,12 @@ const tagSuggestions = computed(() =>
         <div class="form-row">
           <el-form-item label="消费成员" required>
             <el-select
-              :model-value="isEditing ? (form.memberIds[0] || '') : form.memberIds"
-              :multiple="!isEditing"
-              :collapse-tags="!isEditing && form.memberIds.length > 1"
+              v-model="form.memberIds"
+              multiple
+              :collapse-tags="form.memberIds.length > 1"
               size="default"
               style="width: 100%"
-              :placeholder="isEditing ? '请选择消费成员' : '多选为多人分摊'"
+              :placeholder="'多选为多人分摊(单选=1人也OK)'"
               @update:model-value="onMemberSelectUpdate"
             >
               <el-option v-for="m in memberOptions" :key="m.id" :label="m.label" :value="m.id" />
@@ -1003,9 +1042,9 @@ const tagSuggestions = computed(() =>
           </el-form-item>
         </div>
 
-        <!-- 多人分摊（方案 C）：选 2 人及以上时出现 -->
+        <!-- 多人分摊（方案 C）：选 2 人及以上时出现(新增/编辑都显示) -->
         <el-form-item
-          v-if="!isEditing && form.memberIds.length > 1"
+          v-if="form.memberIds.length > 1"
           label="分摊方式"
           class="form-full"
         >
