@@ -233,6 +233,25 @@ function clearAllFilters() {
   if (store.filter.range === 'custom') store.filter.range = 'today'
 }
 
+// v2026-09-07 分摊组视觉分组:扫一遍列表行,记录每个 group_id 命中
+// 的"第一条行"(它之前要么不是分摊行,要么是不同 group_id)。
+// 用来给组内首行加 is-shared-first class,渲染时用 1px 顶边线
+// 强化"这是新一组"的视觉提示。
+// 依赖 store.filteredExpenses(已 sort + filter),O(n) 一次。
+const sharedGroupFirstMap = computed(() => {
+  const map = new Map<string, boolean>()
+  const arr = store.filteredExpenses
+  for (let i = 0; i < arr.length; i++) {
+    const e = arr[i]
+    if (!e.group_id) continue
+    const prev = arr[i - 1]
+    if (!prev || prev.group_id !== e.group_id) {
+      map.set(e.id, true)
+    }
+  }
+  return map
+})
+
 const memberOptions = computed(() =>
   familyStore.members.map((m) => ({
     id: m.id,
@@ -909,7 +928,15 @@ const tagSuggestions = computed(() =>
         <span style="text-align: right">操作</span>
       </div>
       <TransitionGroup name="row" tag="div" class="list-body">
-        <div v-for="e in store.filteredExpenses" :key="e.id" class="list-row">
+        <div
+          v-for="e in store.filteredExpenses"
+          :key="e.id"
+          class="list-row"
+          :class="{
+            'is-shared': !!e.group_id,
+            'is-shared-first': !!sharedGroupFirstMap.get(e.id)
+          }"
+        >
         <span class="cell-time">{{ formatDate(e.spent_at) }}</span>
         <span class="cell-member">
           <span class="member-main">
@@ -1640,6 +1667,25 @@ const tagSuggestions = computed(() =>
 }
 .list-row:hover .cell-actions { opacity: 1; }
 .list-row:last-child { border-bottom: none; }
+
+/* v2026-09-07 分摊整组视觉分组:
+   - 任一分摊行 → 4% 浅绿底,跟普通白底区分
+   - 同组首行 → 加 1px 25% 绿顶边线,提示"这下面是新一组"
+   - 同组 hover → 8% 略深,提示可点击
+   - 组内的"分摊"小徽章加深一档,跟浅底协调 */
+.list-row.is-shared {
+  background: rgba(47, 181, 95, 0.04);
+}
+.list-row.is-shared-first {
+  border-top: 1px solid rgba(47, 181, 95, 0.25);
+}
+.list-row.is-shared:hover {
+  background: rgba(47, 181, 95, 0.08);
+}
+.list-row.is-shared .split-badge {
+  background: rgba(47, 181, 95, 0.18);
+  color: #1f8a4a;
+}
 .cell-time {
   color: var(--color-text-soft);
   font-variant-numeric: tabular-nums;
