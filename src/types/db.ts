@@ -43,6 +43,7 @@ export interface DbExpense {
   updated_at: string
   deleted_at: string | null
   group_id: string | null // v2026-09-01 多人分摊：同组子记录共享同一 group_id
+  tags: string[] // v2026-09-07 自由标签（如 #旅游 #出差），跨分类聚合用
 }
 
 /**

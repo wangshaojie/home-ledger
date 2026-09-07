@@ -31,19 +31,33 @@ const categoryStore = useCategoryStore()
 const accountStore = usePaymentAccountStore()
 const familyStore = useFamilyStore()
 
-// v2026-09-01 支持查看去年 / 前年 / 指定月份
-const range = ref<'month' | 'year' | 'lastYear' | 'beforeLastYear' | 'custom'>('month')
-const customMonth = ref('')
+// v2026-09-07 range 扩展:支持 'today' / 'week' / '30d' 跟 HomeView 一致;
+//   'custom' 改任意日期段(原先是单月),由 customDateRange 元组驱动
+const range = ref<'today' | 'week' | 'month' | '30d' | 'year' | 'lastYear' | 'beforeLastYear' | 'custom'>('month')
+const customDateRange = ref<[string, string] | null>(null)
 
 /** 当前统计期间（起止时间戳，含起不含止） */
 const period = computed(() => {
   const now = new Date()
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   let start: Date
   let end: Date
   switch (range.value) {
+    case 'today':
+      start = startOfDay
+      end = new Date(startOfDay.getTime() + 86400000)
+      break
+    case 'week':
+      start = new Date(now.getTime() - 6 * 86400000)
+      end = new Date(startOfDay.getTime() + 86400000)
+      break
     case 'month':
       start = new Date(now.getFullYear(), now.getMonth(), 1)
       end = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+      break
+    case '30d':
+      start = new Date(now.getTime() - 29 * 86400000)
+      end = new Date(startOfDay.getTime() + 86400000)
       break
     case 'year':
       start = new Date(now.getFullYear(), 0, 1)
@@ -58,13 +72,14 @@ const period = computed(() => {
       end = new Date(now.getFullYear() - 1, 0, 1)
       break
     case 'custom': {
-      const [y, m] = customMonth.value.split('-').map(Number)
-      if (!y || !m) {
+      // daterange 给的 YYYY-MM-DD 是本地 00:00:00,
+      // 这里把 end +1 day 让"含当天"语义清晰
+      if (!customDateRange.value) {
         start = new Date(now.getFullYear(), now.getMonth(), 1)
         end = new Date(now.getFullYear(), now.getMonth() + 1, 1)
       } else {
-        start = new Date(y, m - 1, 1)
-        end = new Date(y, m, 1)
+        start = new Date(customDateRange.value[0])
+        end = new Date(new Date(customDateRange.value[1]).getTime() + 86400000)
       }
       break
     }
@@ -72,11 +87,17 @@ const period = computed(() => {
   return { start: start.getTime(), end: end.getTime() }
 })
 
-/** 期间显示文案：本月 / 今年 / 去年 / 前年 / 2025年3月 */
+/** 期间显示文案 */
 const periodLabel = computed(() => {
   switch (range.value) {
+    case 'today':
+      return '今日'
+    case 'week':
+      return '本周'
     case 'month':
       return '本月'
+    case '30d':
+      return '近 30 天'
     case 'year':
       return '今年'
     case 'lastYear':
@@ -84,8 +105,8 @@ const periodLabel = computed(() => {
     case 'beforeLastYear':
       return '前年'
     case 'custom': {
-      const [y, m] = customMonth.value.split('-').map(Number)
-      return y ? `${y}年${m}月` : ''
+      if (!customDateRange.value) return '自定义'
+      return customDateRange.value.join(' ~ ')
     }
   }
 })
@@ -96,11 +117,54 @@ function inPeriod(e: { spent_at: string }) {
   return t >= period.value.start && t < period.value.end
 }
 
-/** 切到「指定月份」但还没选过时，默认当前月，避免空白统计 */
+/** daterange 快速选择:本月/上月/最近 7/30/90 天 */
+const dateRangeShortcuts = [
+  {
+    text: '本月',
+    value: () => {
+      const now = new Date()
+      return [new Date(now.getFullYear(), now.getMonth(), 1), now]
+    }
+  },
+  {
+    text: '上月',
+    value: () => {
+      const now = new Date()
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const end = new Date(now.getFullYear(), now.getMonth(), 0)
+      return [start, end]
+    }
+  },
+  {
+    text: '最近 7 天',
+    value: () => {
+      const now = new Date()
+      return [new Date(now.getTime() - 6 * 86400000), now]
+    }
+  },
+  {
+    text: '最近 30 天',
+    value: () => {
+      const now = new Date()
+      return [new Date(now.getTime() - 29 * 86400000), now]
+    }
+  },
+  {
+    text: '最近 90 天',
+    value: () => {
+      const now = new Date()
+      return [new Date(now.getTime() - 89 * 86400000), now]
+    }
+  }
+]
+
+/** 切到"自定义"但还没选过时，给一个默认(本月初到今天) */
 function onRangeChange(v: string | number | boolean | undefined) {
-  if (v === 'custom' && !customMonth.value) {
+  if (v === 'custom' && !customDateRange.value) {
     const now = new Date()
-    customMonth.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    customDateRange.value = [fmt(start), fmt(now)]
   }
 }
 
@@ -183,6 +247,30 @@ const categoryData = computed(() => {
     .sort((a, b) => b.value - a.value)
 })
 
+// v2026-09-07 自由标签维度:跟 categoryData 一样的"占比"形态
+// 一笔账可能有多个 tag,会被多个 tag 各算一份(所以"tag 维度总和"可能大于实际支出,这是 by-design)
+// 没 tag 的账不计入 tag 维度
+const tagData = computed(() => {
+  const map = new Map<string, number>()
+  store.items.forEach((e) => {
+    if (!inPeriod(e)) return
+    const tags = (e as { tags?: string[] }).tags || []
+    for (const t of tags) {
+      map.set(t, (map.get(t) || 0) + Number(e.amount))
+    }
+  })
+  return Array.from(map.entries())
+    .map(([name, value]) => ({ name: '#' + name, value, raw: name }))
+    .sort((a, b) => b.value - a.value)
+})
+
+// v2026-09-07 饼图下方"分类/标签"维度切换
+const dimType = ref<'category' | 'tag'>('category')
+const pieData = computed(() => (dimType.value === 'tag' ? tagData.value : categoryData.value))
+const pieTotal = computed(() => pieData.value.reduce((s, d) => s + d.value, 0))
+const pieTopName = computed(() => pieData.value[0]?.name || '—')
+const pieTopValue = computed(() => pieData.value[0]?.value || 0)
+
 // 饼图通用调色板(分类 + 账户都用同一组,保证视觉一致)
 const piePalette = [
   '#f56c2c', '#4f7cff', '#2fb55f', '#8a63f4', '#f5a623',
@@ -248,9 +336,7 @@ function buildCenterGraphic(total: number, topLabel: string, topValue: number) {
 }
 
 const categoryPieCenter = computed(() => {
-  const total = categoryData.value.reduce((s, d) => s + d.value, 0)
-  const top = categoryData.value[0]
-  return buildCenterGraphic(total, top?.name || '—', top?.value || 0)
+  return buildCenterGraphic(pieTotal.value, pieTopName.value, pieTopValue.value)
 })
 
 const accountPieCenter = computed(() => {
@@ -316,7 +402,7 @@ const pieOption = computed(() => ({
         },
         label: { fontSize: 12, fontWeight: 700, color: '#1f2329' }
       },
-      data: categoryData.value
+      data: pieData.value
     }
   ],
   color: piePalette
@@ -448,20 +534,45 @@ function fmt(n: number) {
 // v2026-09-02 修复:之前只有 items.length === 0 才 load,
 // 切菜单时 store.items 已经有「今天/本周」数据,统计页想看「本月/去年」就空白
 // loadForStats 不依赖记账页 filter,不会污染记账页 state
+// v2026-09-07:任意区间都下沉到 SQL,不再"month 走 SQL / 其他全量 + 前端过滤"
 function loadForStats() {
-  // 'month' 走 SQL month 下界(精准)
-  // 'year' / 'lastYear' / 'beforeLastYear' / 'custom' 拉全量,在前端 inPeriod 过滤
-  const target: 'month' | 'all' = range.value === 'month' ? 'month' : 'all'
-  void store.loadForStats(target)
+  const opts: { customStart?: string | null; customEnd?: string | null } = {}
+  if (range.value === 'custom' && customDateRange.value) {
+    opts.customStart = customDateRange.value[0]
+    opts.customEnd = customDateRange.value[1]
+  }
+  void store.loadForStats(range.value, opts)
 }
 
 onMounted(() => {
+  // v2026-09-07 仅 mount 时单向同步 HomeView 的筛选区间到 StatsView 本地 state。
+  // 设计意图:用户从 HomeView 跳过来时,统计页"接续"当前选中的区间,不要用户重新选一次;
+  // 进了 StatsView 之后再调 range 不影响 HomeView(没反向同步,避免两边打架)。
+  //
+  // range 映射:HomeView filter 有 'all' / 'yesterday' / 'month' / '30d' / 'today' / 'week' / 'custom',
+  // StatsView 本地只有 'today' / 'week' / 'month' / '30d' / 'year' / 'lastYear' / 'beforeLastYear' / 'custom'
+  // 没交集的('all' / 'yesterday')fallback 默认 'month',让统计页"以月为单位"展示
+  const f = store.filter
+  if (f.range === 'custom' && f.customStart && f.customEnd) {
+    range.value = 'custom'
+    customDateRange.value = [f.customStart, f.customEnd]
+  } else if (f.range === 'today' || f.range === 'week' || f.range === 'month' || f.range === '30d') {
+    range.value = f.range
+  } else if (f.range === 'year') {
+    range.value = 'year'
+  } else if (f.range === 'all' || f.range === 'yesterday') {
+    // 不支持 → fallback 默认 month(本地 default 已经是 'month',不动)
+  }
   loadForStats()
 })
 
 // 切顶部 range 时重新拉
 watch(range, () => {
   loadForStats()
+})
+// 改 daterange 时也重新拉(custom 模式才生效,其他模式这条会被 onMounted 触发一次)
+watch(customDateRange, () => {
+  if (range.value === 'custom') loadForStats()
 })
 </script>
 
@@ -474,21 +585,29 @@ watch(range, () => {
       </div>
       <div class="range-pills">
         <el-radio-group v-model="range" @change="onRangeChange">
+          <el-radio-button value="today">今日</el-radio-button>
+          <el-radio-button value="week">本周</el-radio-button>
           <el-radio-button value="month">本月</el-radio-button>
+          <el-radio-button value="30d">近 30 天</el-radio-button>
           <el-radio-button value="year">本年</el-radio-button>
           <el-radio-button value="lastYear">去年</el-radio-button>
           <el-radio-button value="beforeLastYear">前年</el-radio-button>
-          <el-radio-button value="custom">指定月份</el-radio-button>
+          <el-radio-button value="custom">自定义</el-radio-button>
         </el-radio-group>
         <el-date-picker
           v-if="range === 'custom'"
-          v-model="customMonth"
-          type="month"
-          format="YYYY年MM月"
-          value-format="YYYY-MM"
+          v-model="customDateRange"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          format="YYYY-MM-DD"
+          value-format="YYYY-MM-DD"
+          unlink-panels
           :clearable="false"
+          :shortcuts="dateRangeShortcuts"
           size="default"
-          class="month-picker"
+          class="custom-range-picker"
         />
       </div>
     </div>
@@ -547,9 +666,18 @@ watch(range, () => {
         element-loading-text="数据加载中…"
       >
         <div class="chart-title">
-          分类支出占比
-          <span class="chart-meta" v-if="categoryData.length > 0">
-            共 <b>{{ categoryData.length }}</b> 个分类
+          <!-- v2026-09-07 分类/标签 维度切换:核心场景是看"旅游/出差/可报销"这类跨分类聚合 -->
+          <el-segmented
+            v-model="dimType"
+            :options="[
+              { label: '按分类', value: 'category' },
+              { label: '按标签', value: 'tag' }
+            ]"
+            size="small"
+            class="dim-toggle"
+          />
+          <span class="chart-meta" v-if="pieData.length > 0">
+            共 <b>{{ pieData.length }}</b> 个{{ dimType === 'tag' ? '标签' : '分类' }}
           </span>
         </div>
         <v-chart class="chart pie-chart" :option="pieOption" autoresize />
@@ -559,21 +687,27 @@ watch(range, () => {
         v-loading="store.loading"
         element-loading-text="数据加载中…"
       >
-        <div class="chart-title">分类支出明细</div>
+        <div class="chart-title">
+          {{ dimType === 'tag' ? '标签支出明细' : '分类支出明细' }}
+        </div>
         <div class="cat-bars">
-          <div v-for="(c, i) in categoryData" :key="c.name" class="cat-bar-row">
+          <div v-for="(c, i) in pieData" :key="c.name" class="cat-bar-row">
             <div class="cat-bar-label">
               <span
+                v-if="dimType === 'category'"
                 class="cat-bar-icon"
                 :style="{ background: piePalette[i % piePalette.length] + '22', color: piePalette[i % piePalette.length] }"
-              >{{ c.icon }}</span>
+              >{{ (c as any).icon }}</span>
+              <span v-else class="cat-bar-icon tag-icon"
+                :style="{ background: piePalette[i % piePalette.length] + '22', color: piePalette[i % piePalette.length] }"
+              >#</span>
               <span>{{ c.name }}</span>
             </div>
             <div class="cat-bar-track">
               <div
                 class="cat-bar-fill"
                 :style="{
-                  width: categoryData[0] ? (c.value / categoryData[0].value) * 100 + '%' : '0%',
+                  width: pieData[0] ? (c.value / pieData[0].value) * 100 + '%' : '0%',
                   background: `linear-gradient(90deg, ${piePalette[i % piePalette.length]}, ${piePalette[(i + 1) % piePalette.length]})`,
                   boxShadow: `0 0 8px ${piePalette[i % piePalette.length]}66`
                 }"
@@ -581,10 +715,10 @@ watch(range, () => {
             </div>
             <div class="cat-bar-amount">
               <span class="bar-amount-value">{{ fmt(c.value) }}</span>
-              <span class="bar-amount-pct">{{ categoryTotal ? ((c.value / categoryTotal) * 100).toFixed(1) : 0 }}%</span>
+              <span class="bar-amount-pct">{{ pieTotal ? ((c.value / pieTotal) * 100).toFixed(1) : 0 }}%</span>
             </div>
           </div>
-          <div v-if="categoryData.length === 0" class="empty-mini">暂无数据</div>
+          <div v-if="pieData.length === 0" class="empty-mini">暂无数据</div>
         </div>
       </div>
     </div>
@@ -676,6 +810,19 @@ watch(range, () => {
   gap: 8px;
 }
 .range-pills .month-picker { flex-shrink: 0; }
+.range-pills .custom-range-picker { flex-shrink: 0; width: 280px; margin-left: 8px; }
+
+/* v2026-09-07 饼图"按分类 / 按标签"切换 */
+.chart-title .dim-toggle {
+  margin-right: auto;
+}
+.chart-title .dim-toggle :deep(.el-segmented__item) {
+  font-size: 12px;
+}
+.cat-bar-icon.tag-icon {
+  font-weight: 700;
+  font-size: 13px;
+}
 .range-pills :deep(.el-radio-group) {
   display: flex;
   flex-wrap: wrap;

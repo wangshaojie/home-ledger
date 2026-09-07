@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { errText } from '@/lib/notify'
-import { rangeStartIso, type RangeKey } from '@/lib/dateRange'
+import { rangeStartIso, rangeEndExclusive, type RangeKey } from '@/lib/dateRange'
 import { useAuthStore } from './auth'
 
 export interface Expense {
@@ -21,6 +21,8 @@ export interface Expense {
   deleted_at: string | null
   // v2026-09-01 多人分摊：同组子记录共享同一 group_id，为 NULL 表示普通单条
   group_id: string | null
+  // v2026-09-07 自由标签：跨分类聚合用（如 #旅游 #出差 #可报销）
+  tags: string[]
   // 关联表 join 出来的可选字段
   // v1.1: member 指向 family_members（不再指向 profiles）
   member?: { id: string; name: string; type: 'adult' | 'child' | 'pet' } | null
@@ -35,6 +37,13 @@ export interface FilterState {
   memberIds: string[]
   minAmount?: number
   maxAmount?: number
+  // v2026-09-07 标签筛选：每个关键词独立"contains"匹配，OR 关系
+  // 例：['旅游', '出差'] → 命中带 #旅游 或 #出差 的账（任一即中）
+  tagKeywords: string[]
+  // v2026-09-07 自定义日期区间(配合 range === 'custom' 用)
+  // 存的是 ISO string(本地时区 00:00:00),SQL 端会再转
+  customStart: string | null
+  customEnd: string | null
 }
 
 export const useExpenseStore = defineStore('expense', () => {
@@ -49,7 +58,10 @@ export const useExpenseStore = defineStore('expense', () => {
     categoryIds: [],
     memberIds: [],
     minAmount: undefined,
-    maxAmount: undefined
+    maxAmount: undefined,
+    tagKeywords: [],
+    customStart: null,
+    customEnd: null
   })
 
   const filteredExpenses = computed(() => {
@@ -68,10 +80,25 @@ export const useExpenseStore = defineStore('expense', () => {
         if (filter.value.range === 'week' && d < weekAgo) return false
         if (filter.value.range === '30d' && d < thirtyDaysAgo) return false
         if (filter.value.range === 'month' && d < monthStart) return false
+        // v2026-09-07 自定义日期区间:[customStart, customEnd+1day)
+        // SQL 端已经下沉到 GTE/LT,这里是兜底(对还没筛选的本地 items)
+        if (filter.value.range === 'custom') {
+          if (filter.value.customStart && d < new Date(filter.value.customStart)) return false
+          if (filter.value.customEnd) {
+            const endPlus = new Date(filter.value.customEnd).getTime() + 86400000
+            if (d.getTime() >= endPlus) return false
+          }
+        }
         if (filter.value.categoryIds.length && !filter.value.categoryIds.includes(e.category_id)) return false
         if (filter.value.memberIds.length && !filter.value.memberIds.includes(e.member_id)) return false
         if (filter.value.minAmount != null && e.amount < filter.value.minAmount) return false
         if (filter.value.maxAmount != null && e.amount > filter.value.maxAmount) return false
+        // v2026-09-07 标签筛选：每个关键词独立 contains 匹配,OR 关系
+        if (filter.value.tagKeywords.length) {
+          const eTags = e.tags || []
+          const hit = filter.value.tagKeywords.some((kw) => eTags.includes(kw))
+          if (!hit) return false
+        }
         return true
       })
       .sort((a, b) => new Date(b.spent_at).getTime() - new Date(a.spent_at).getTime())
@@ -148,6 +175,8 @@ export const useExpenseStore = defineStore('expense', () => {
       // v2026-09-04:可选时间上界（不含）。"昨天" 这种紧贴今天的 range 必须传，
       // 否则会把今天 00:00 之后的支出也卷进去，跟列表 SQL 口径不一致。
       endExclusive?: string | null
+      // v2026-09-07:标签筛选。跟列表/统计口径一致。
+      tagKeywords?: string[]
     }
   ): Promise<{ memberId: string; total: number }[]> {
     const auth = useAuthStore()
@@ -164,6 +193,7 @@ export const useExpenseStore = defineStore('expense', () => {
     if (extraFilter?.memberIds?.length) q = q.in('member_id', extraFilter.memberIds)
     if (extraFilter?.minAmount != null) q = q.gte('amount', extraFilter.minAmount)
     if (extraFilter?.maxAmount != null) q = q.lte('amount', extraFilter.maxAmount)
+    if (extraFilter?.tagKeywords?.length) q = q.overlaps('tags', extraFilter.tagKeywords)
     const { data, error } = await q
     if (error) {
       console.error('aggregateByCreator error', error)
@@ -196,6 +226,8 @@ export const useExpenseStore = defineStore('expense', () => {
       // v2026-09-04:可选时间上界（不含）。"昨天" 这种紧贴今天的 range 必须传，
       // 否则会把今天 00:00 之后的支出也卷进去，跟列表 SQL 口径不一致。
       endExclusive?: string | null
+      // v2026-09-07:标签筛选。跟列表/统计口径一致。
+      tagKeywords?: string[]
     }
   ): Promise<{ memberId: string; total: number }[]> {
     const auth = useAuthStore()
@@ -213,6 +245,7 @@ export const useExpenseStore = defineStore('expense', () => {
     if (extraFilter?.memberIds?.length) q = q.in('member_id', extraFilter.memberIds)
     if (extraFilter?.minAmount != null) q = q.gte('amount', extraFilter.minAmount)
     if (extraFilter?.maxAmount != null) q = q.lte('amount', extraFilter.maxAmount)
+    if (extraFilter?.tagKeywords?.length) q = q.overlaps('tags', extraFilter.tagKeywords)
     const { data, error } = await q
     if (error) {
       console.error('aggregateByPayer error', error)
@@ -242,6 +275,8 @@ export const useExpenseStore = defineStore('expense', () => {
       // v2026-09-04:可选时间上界（不含）。"昨天" 这种紧贴今天的 range 必须传，
       // 否则会把今天 00:00 之后的支出也卷进去，跟列表 SQL 口径不一致。
       endExclusive?: string | null
+      // v2026-09-07:标签筛选。跟列表/统计口径一致。
+      tagKeywords?: string[]
     }
   ): Promise<{ memberId: string; total: number }[]> {
     const auth = useAuthStore()
@@ -258,6 +293,7 @@ export const useExpenseStore = defineStore('expense', () => {
     if (extraFilter?.memberIds?.length) q = q.in('member_id', extraFilter.memberIds)
     if (extraFilter?.minAmount != null) q = q.gte('amount', extraFilter.minAmount)
     if (extraFilter?.maxAmount != null) q = q.lte('amount', extraFilter.maxAmount)
+    if (extraFilter?.tagKeywords?.length) q = q.overlaps('tags', extraFilter.tagKeywords)
     const { data, error } = await q
     if (error) {
       console.error('aggregateByMember error', error)
@@ -298,8 +334,14 @@ export const useExpenseStore = defineStore('expense', () => {
    * v2026-09-02 统计页专用:按指定 range 拉数据(覆盖当前 filter.range)
    * 用于统计页进入 / 切 range 时拉足够的数据,
    * 不影响记账页 HomeView 的 filter 状态
+   *
+   * v2026-09-07 入参扩展:支持 statsRange 传 RangeKey + 可选 customStart/customEnd,
+   * 任意日期段也能走 SQL 下沉(GIN 索引 tags + btree 索引 spent_at 都生效)
    */
-  async function loadForStats(statsRange: 'month' | 'all') {
+  async function loadForStats(
+    statsRange: 'month' | 'all' | 'today' | 'week' | '30d' | 'yesterday' | 'custom' = 'month',
+    opts: { customStart?: string | null; customEnd?: string | null } = {}
+  ) {
     const seq = ++loadSeq
     const auth = useAuthStore()
     const fid = auth.profile?.family_id
@@ -322,8 +364,13 @@ export const useExpenseStore = defineStore('expense', () => {
       .is('deleted_at', null)
     // 统计页的 range 不依赖 HomeView 的 filter(可能记的是 today/week)
     // 'month' 走 SQL month 下界;'all' / 'year' / 'lastYear' / 'beforeLastYear' / 'custom' 走全量
-    const since = rangeStartIso(statsRange)
+    // v2026-09-07:任意区间都下沉到 SQL,不再依赖全量 + 前端 inPeriod
+    const since = rangeStartIso(statsRange, opts.customStart, opts.customEnd)
     if (since) q = q.gte('spent_at', since)
+    const endEx = rangeEndExclusive(statsRange, opts.customStart, opts.customEnd)
+    if (endEx) q = q.lt('spent_at', endEx)
+    // 统计页沿用当前 filter 的标签筛选(用户切到"按旅游"想看统计也得跟着)
+    if (filter.value.tagKeywords.length) q = q.overlaps('tags', filter.value.tagKeywords)
 
     try {
       const { data, error } = await q.order('spent_at', { ascending: false })
@@ -365,13 +412,16 @@ export const useExpenseStore = defineStore('expense', () => {
       .eq('family_id', fid)
       .is('deleted_at', null)
     const f = filter.value
-    const since = rangeStartIso(f.range)
+    const since = rangeStartIso(f.range, f.customStart, f.customEnd)
     if (since) q = q.gte('spent_at', since)
-    if (f.range === 'yesterday') q = q.lt('spent_at', rangeStartIso('today')!)
+    const endEx = rangeEndExclusive(f.range, f.customStart, f.customEnd)
+    if (endEx) q = q.lt('spent_at', endEx)
     if (f.categoryIds.length) q = q.in('category_id', f.categoryIds)
     if (f.memberIds.length) q = q.in('member_id', f.memberIds)
     if (f.minAmount != null) q = q.gte('amount', f.minAmount)
     if (f.maxAmount != null) q = q.lte('amount', f.maxAmount)
+    // v2026-09-07 标签筛选:overlaps 在 GIN 索引上高效反查,客户端不再二次过滤
+    if (f.tagKeywords.length) q = q.overlaps('tags', f.tagKeywords)
 
     try {
       const { data, error } = await q.order('spent_at', { ascending: false })
@@ -398,6 +448,8 @@ export const useExpenseStore = defineStore('expense', () => {
     payerId: string
     spentAt: string
     note: string
+    // v2026-09-07 自由标签,跨分类筛选用
+    tags?: string[]
   }) {
     const auth = useAuthStore()
     const fid = auth.profile?.family_id
@@ -414,7 +466,8 @@ export const useExpenseStore = defineStore('expense', () => {
         account_id: payload.accountId,
         amount: payload.amount,
         spent_at: payload.spentAt,
-        note: payload.note
+        note: payload.note,
+        tags: payload.tags || []
       })
       .select(`
         *,
@@ -439,6 +492,8 @@ export const useExpenseStore = defineStore('expense', () => {
     payerId: string
     spentAt: string
     note: string
+    // v2026-09-07 编辑时支持改标签
+    tags?: string[]
   }>) {
     const updateObj: any = {}
     if (patch.amount !== undefined) updateObj.amount = patch.amount
@@ -448,6 +503,8 @@ export const useExpenseStore = defineStore('expense', () => {
     if (patch.payerId !== undefined) updateObj.payer_id = patch.payerId
     if (patch.spentAt !== undefined) updateObj.spent_at = patch.spentAt
     if (patch.note !== undefined) updateObj.note = patch.note
+    // tags 用数组语义:undefined 不动;[] 清空;['x'] 覆盖
+    if (patch.tags !== undefined) updateObj.tags = patch.tags
     const { error } = await supabase.from('expenses').update(updateObj).eq('id', id)
     if (error) return { ok: false, message: errText(error, '更新失败') }
     // 本地也更新
@@ -467,12 +524,15 @@ export const useExpenseStore = defineStore('expense', () => {
     accountId: string
     spentAt: string
     note: string
+    // v2026-09-07 分摊时也可以打标签(整组共享)
+    tags?: string[]
   }) {
     const auth = useAuthStore()
     const fid = auth.profile?.family_id
     const uid = auth.user?.id || auth.profile?.id
     if (!fid || !uid) return { ok: false, message: '未登录' }
     const groupId = crypto.randomUUID()
+    const tags = payload.tags || []
     const rows = payload.splits.map((s) => ({
       family_id: fid,
       creator_id: uid,
@@ -483,7 +543,8 @@ export const useExpenseStore = defineStore('expense', () => {
       amount: s.amount,
       spent_at: payload.spentAt,
       note: payload.note,
-      group_id: groupId
+      group_id: groupId,
+      tags
     }))
     const { data, error } = await supabase
       .from('expenses')
@@ -546,7 +607,10 @@ export const useExpenseStore = defineStore('expense', () => {
       categoryIds: [],
       memberIds: [],
       minAmount: undefined,
-      maxAmount: undefined
+      maxAmount: undefined,
+      tagKeywords: [],
+      customStart: null,
+      customEnd: null
     }
   }
 

@@ -54,15 +54,24 @@ async function loadStats() {
     // v2026-09-04:"昨天" 这种紧贴今天的 range 必须把 today 00:00 当作 endExclusive 透传，
     // 否则 SQL 端只有 gte spent_at,没有 lt,会把今天 00:00 之后的支出也卷进统计图
     // (跟列表 SQL 不一致,典型症状:列表显示妈妈 13.3,但成员统计图显示 21)
-    const endExclusive = f.range === 'yesterday' ? rangeStartIso('today') : null
+    // v2026-09-07:custom 区间同样需要上界(customEnd +1 day 含当天)
+    let endExclusive: string | null = null
+    if (f.range === 'yesterday') {
+      endExclusive = rangeStartIso('today')
+    } else if (f.range === 'custom' && f.customEnd) {
+      // 跟 dateRange.rangeEndExclusive 同样的"+1 day 含当天"逻辑
+      endExclusive = new Date(new Date(f.customEnd).getTime() + 86400000).toISOString()
+    }
     const extraFilter = {
       categoryIds: f.categoryIds,
       memberIds: f.memberIds,
       minAmount: f.minAmount,
       maxAmount: f.maxAmount,
-      endExclusive
+      endExclusive,
+      // v2026-09-07 标签:跟列表/统计口径一致
+      tagKeywords: f.tagKeywords
     }
-    const since = rangeStartIso(f.range)
+    const since = rangeStartIso(f.range, f.customStart, f.customEnd)
     // "按付款人" 用 aggregateByPayer（expenses.payer_id 直接指向 family_members，
     // 不需要 profile→family_member 翻译，也不会因为多人共用一个登录 profile 而被合并）
     // "按消费成员" 用 aggregateByMember（钱算谁头上）
@@ -111,6 +120,9 @@ watch(
     // 故意不监听 filter.memberIds.length —— 见上方注释
     () => expenseStore.filter.minAmount,
     () => expenseStore.filter.maxAmount,
+    () => expenseStore.filter.tagKeywords,
+    () => expenseStore.filter.customStart,
+    () => expenseStore.filter.customEnd,
     () => familyStore.members.length
   ],
   () => {

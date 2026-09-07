@@ -518,7 +518,9 @@ returns table (
   account_name text,
   spent_at date,
   creator_id uuid,
-  creator_name text
+  creator_name text,
+  -- v2026-09-07 自由标签列,AI 看账时能立刻识别"哪些是旅游"等跨分类聚合
+  tags text[]
 )
 language plpgsql
 security definer
@@ -553,7 +555,8 @@ begin
     e.id, e.amount, e.note,
     e.category_id, c.name,
     e.account_id, pa.name,
-    e.spent_at::date, e.creator_id, p.display_name
+    e.spent_at::date, e.creator_id, p.display_name,
+    e.tags
   from public.expenses e
   left join public.categories c on c.id = e.category_id
   left join public.payment_accounts pa on pa.id = e.account_id

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { useExpenseStore } from '@/stores/expense'
 import { useCategoryStore } from '@/stores/category'
@@ -54,7 +54,11 @@ const form = ref({
   note: '',
   // v2026-09-01 多人分摊（方案 C）
   splitMode: 'equal' as 'equal' | 'custom',
-  splitAmounts: {} as Record<string, number>
+  splitAmounts: {} as Record<string, number>,
+  // v2026-09-07 自由标签:跨分类筛选(如 #旅游 / #出差 / #可报销)
+  tags: [] as string[],
+  // 标签输入框的 raw 文本,用于"按回车/逗号/失焦"提交
+  tagInput: ''
 })
 
 const isEditing = computed(() => editingId.value !== null)
@@ -83,6 +87,72 @@ const filterRange = computed({
   get: () => store.filter.range,
   set: (v: any) => (store.filter.range = v)
 })
+
+// v2026-09-07 自定义日期范围
+// customDateRange 是 [start, end] 的字符串元组(YYYY-MM-DD),由 el-date-picker value-format 控制
+// 只有当用户选了完整区间,才写 store.filter.customStart/customEnd;清空则两个置 null
+const customDateRange = ref<[string, string] | null>(null)
+function onCustomRangeChange(v: [string, string] | null) {
+  if (v && v[0] && v[1]) {
+    store.filter.customStart = v[0]
+    store.filter.customEnd = v[1]
+  } else {
+    store.filter.customStart = null
+    store.filter.customEnd = null
+  }
+}
+// daterange 快速选择:本月/上月/最近 7 天/最近 30 天/最近 90 天
+const dateRangeShortcuts = [
+  {
+    text: '本月',
+    value: () => {
+      const now = new Date()
+      return [new Date(now.getFullYear(), now.getMonth(), 1), now]
+    }
+  },
+  {
+    text: '上月',
+    value: () => {
+      const now = new Date()
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const end = new Date(now.getFullYear(), now.getMonth(), 0)
+      return [start, end]
+    }
+  },
+  {
+    text: '最近 7 天',
+    value: () => {
+      const now = new Date()
+      return [new Date(now.getTime() - 6 * 86400000), now]
+    }
+  },
+  {
+    text: '最近 30 天',
+    value: () => {
+      const now = new Date()
+      return [new Date(now.getTime() - 29 * 86400000), now]
+    }
+  },
+  {
+    text: '最近 90 天',
+    value: () => {
+      const now = new Date()
+      return [new Date(now.getTime() - 89 * 86400000), now]
+    }
+  }
+]
+
+// 监听 store.filter.range,切走时清掉 daterange 残留(避免下次进 custom 还显示旧值)
+watch(filterRange, (v) => {
+  if (v !== 'custom') customDateRange.value = null
+})
+// 监听 store.filter.customStart/customEnd,外部清空时同步 daterange
+watch(
+  () => [store.filter.customStart, store.filter.customEnd],
+  ([s, e]) => {
+    if (!s && !e) customDateRange.value = null
+  }
+)
 
 // 当前生效的筛选条件 chips（时间维度走顶部 radio,这里只展示成员/分类/金额）
 const activeFilterChips = computed(() => {
@@ -124,6 +194,30 @@ const activeFilterChips = computed(() => {
       }
     })
   }
+  // v2026-09-07 标签 chip
+  for (const kw of store.filter.tagKeywords) {
+    chips.push({
+      key: 'tag-' + kw,
+      label: '标签: #' + kw,
+      onClose: () => {
+        store.filter.tagKeywords = store.filter.tagKeywords.filter((x) => x !== kw)
+      }
+    })
+  }
+  // v2026-09-07 自定义日期区间 chip
+  if (store.filter.range === 'custom' && store.filter.customStart && store.filter.customEnd) {
+    const fmt = (s: string) => s // value-format 已经是 YYYY-MM-DD
+    chips.push({
+      key: 'custom-range',
+      label: `日期: ${fmt(store.filter.customStart)} ~ ${fmt(store.filter.customEnd)}`,
+      onClose: () => {
+        store.filter.range = 'today'
+        store.filter.customStart = null
+        store.filter.customEnd = null
+        customDateRange.value = null
+      }
+    })
+  }
   return chips
 })
 
@@ -132,6 +226,11 @@ function clearAllFilters() {
   store.filter.categoryIds = []
   store.filter.minAmount = undefined
   store.filter.maxAmount = undefined
+  store.filter.tagKeywords = []
+  store.filter.customStart = null
+  store.filter.customEnd = null
+  customDateRange.value = null
+  if (store.filter.range === 'custom') store.filter.range = 'today'
 }
 
 const memberOptions = computed(() =>
@@ -185,7 +284,9 @@ function openForm() {
     spentAt: new Date(),
     note: '',
     splitMode: 'equal',
-    splitAmounts: {}
+    splitAmounts: {},
+    tags: [],
+    tagInput: ''
   }
   formVisible.value = true
   nextTick(() => amountInputRef.value?.focus())
@@ -207,7 +308,9 @@ function openEdit(e: any) {
     spentAt: new Date(e.spent_at),
     note: e.note || '',
     splitMode: 'equal',
-    splitAmounts: {}
+    splitAmounts: {},
+    tags: [...(e.tags || [])],
+    tagInput: ''
   }
   formVisible.value = true
 }
@@ -255,6 +358,8 @@ async function submitForm() {
       return
     }
     if (editingId.value) {
+      // 提交前先把输入框里残留的 tag 文本收一下
+      commitTagInput()
       // 编辑模式（分摊记录已在 openEdit 拦截，这里只处理单条）
       const r = await store.update(editingId.value, {
         amount: amt,
@@ -263,7 +368,8 @@ async function submitForm() {
         memberId: form.value.memberIds[0],
         payerId: form.value.payerId,
         spentAt: spentAtDate.toISOString(),
-        note: form.value.note.trim().slice(0, 200)
+        note: form.value.note.trim().slice(0, 200),
+        tags: form.value.tags
       })
       if (r.ok) {
         markCategoryUsed(familyStore.family?.id, form.value.categoryId)
@@ -275,6 +381,7 @@ async function submitForm() {
       }
     } else if (form.value.memberIds.length > 1) {
       // 多人分摊（方案 C）：按均分/自定义拆分后批量插入
+      commitTagInput()
       if (form.value.splitMode === 'custom') {
         const total = splitTotal.value
         if (Math.abs(total - amt) > 0.01) {
@@ -291,7 +398,8 @@ async function submitForm() {
         categoryId: form.value.categoryId,
         accountId: form.value.accountId,
         spentAt: spentAtDate.toISOString(),
-        note: form.value.note.trim().slice(0, 200)
+        note: form.value.note.trim().slice(0, 200),
+        tags: form.value.tags
       })
       if (r.ok) {
         markCategoryUsed(familyStore.family?.id, form.value.categoryId)
@@ -303,6 +411,7 @@ async function submitForm() {
       }
     } else {
       // 新增模式：单条
+      commitTagInput()
       const r = await store.add({
         amount: amt,
         categoryId: form.value.categoryId,
@@ -310,7 +419,8 @@ async function submitForm() {
         memberId: form.value.memberIds[0],
         payerId: form.value.payerId,
         spentAt: spentAtDate.toISOString(),
-        note: form.value.note.trim().slice(0, 200)
+        note: form.value.note.trim().slice(0, 200),
+        tags: form.value.tags
       })
       if (r.ok) {
         markCategoryUsed(familyStore.family?.id, form.value.categoryId)
@@ -447,9 +557,90 @@ function formatDate(iso: string) {
   return `${m}-${day} ${hh}:${mm}`
 }
 
+// v2026-09-07 点列表里的 tag chip → 加入筛选条件(切到"按旅游筛"最顺手的入口)
+function onTagClick(t: string) {
+  if (!store.filter.tagKeywords.includes(t)) {
+    store.filter.tagKeywords = [...store.filter.tagKeywords, t]
+  }
+}
+
+// v2026-09-07 高级筛选对话框里"标签"输入框的本地状态
+// (放在 store 里没意义,关闭对话框时丢掉即可)
+const filterTagInput = ref('')
+const filterTagSuggestions = computed(() =>
+  allKnownTags.value.filter((t) => !store.filter.tagKeywords.includes(t)).slice(0, 8)
+)
+function commitFilterTagInput() {
+  const text = filterTagInput.value
+  if (!text) return
+  const parts = text.split(/[,，;；、\s\n\r]+/g)
+  const existing = new Set(store.filter.tagKeywords)
+  for (const p of parts) {
+    const t = normalizeTag(p)
+    if (t && !existing.has(t)) {
+      store.filter.tagKeywords.push(t)
+      existing.add(t)
+    }
+  }
+  filterTagInput.value = ''
+}
+function addFilterTag(t: string) {
+  if (!store.filter.tagKeywords.includes(t)) {
+    store.filter.tagKeywords = [...store.filter.tagKeywords, t]
+  }
+}
+
 function fmtMoney(n: number) {
   return '¥ ' + Number(n).toFixed(2)
 }
+
+// v2026-09-07 标签辅助函数
+
+/** 规范化单个 tag:去首尾空白、去 # 前缀、最长 32 字符、空串丢弃 */
+function normalizeTag(raw: string): string | null {
+  const t = raw.trim().replace(/^#+/, '').trim()
+  if (!t) return null
+  return t.slice(0, 32)
+}
+
+/** 把输入框的 raw 文本(可能含多个 tag,用逗号/空格/分号/顿号/回车分隔)切分并去重追加 */
+function commitTagInput() {
+  const text = form.value.tagInput
+  if (!text) return
+  // 支持常见分隔符:中英文逗号、分号、顿号、空白、换行
+  const parts = text.split(/[,，;；、\s\n\r]+/g)
+  const existing = new Set(form.value.tags)
+  for (const p of parts) {
+    const t = normalizeTag(p)
+    if (t && !existing.has(t)) {
+      form.value.tags.push(t)
+      existing.add(t)
+    }
+  }
+  form.value.tagInput = ''
+}
+
+function removeTag(t: string) {
+  form.value.tags = form.value.tags.filter((x) => x !== t)
+}
+
+/** 用户经常用的"历史 tag"建议:扫一遍已加载的账,统计出现过的 tag,按频次排序取前 20 */
+const allKnownTags = computed(() => {
+  const map = new Map<string, number>()
+  for (const e of store.items) {
+    for (const t of e.tags || []) {
+      map.set(t, (map.get(t) || 0) + 1)
+    }
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([t]) => t)
+})
+
+/** 排除掉已选的、给输入框下方做"快速添加"推荐 */
+const tagSuggestions = computed(() =>
+  allKnownTags.value.filter((t) => !form.value.tags.includes(t)).slice(0, 8)
+)
 </script>
 
 <template>
@@ -506,7 +697,25 @@ function fmtMoney(n: number) {
         <el-radio-button value="week">本周</el-radio-button>
         <el-radio-button value="month">本月</el-radio-button>
         <el-radio-button value="30d">近 30 天</el-radio-button>
+        <el-radio-button value="custom">自定义</el-radio-button>
       </el-radio-group>
+      <!-- v2026-09-07 自定义日期段 daterange:
+           点 "自定义" radio 触发 v-if 显示,选完完整区间后落 store.filter.customStart/customEnd -->
+      <el-date-picker
+        v-if="filterRange === 'custom'"
+        v-model="customDateRange"
+        type="daterange"
+        size="default"
+        range-separator="至"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        format="YYYY-MM-DD"
+        value-format="YYYY-MM-DD"
+        unlink-panels
+        :shortcuts="dateRangeShortcuts"
+        style="margin-left: 8px; width: 280px"
+        @change="onCustomRangeChange"
+      />
       <el-button @click="filterVisible = true">
         <el-icon><Filter /></el-icon>
         <span style="margin-left: 4px">高级筛选</span>
@@ -568,7 +777,23 @@ function fmtMoney(n: number) {
           </span>
           <span v-else class="muted">-</span>
         </span>
-        <span class="cell-note">{{ e.note || '-' }}</span>
+        <span class="cell-note">
+          {{ e.note || '-' }}
+          <!-- v2026-09-07 标签 chip:点击可加为筛选条件 -->
+          <span v-if="e.tags && e.tags.length" class="cell-tags">
+            <el-tag
+              v-for="t in e.tags"
+              :key="t"
+              size="small"
+              type="success"
+              effect="plain"
+              class="clickable"
+              @click="onTagClick(t)"
+            >
+              #{{ t }}
+            </el-tag>
+          </span>
+        </span>
         <span class="cell-amount">{{ fmtMoney(e.amount) }}</span>
         <span class="cell-actions">
           <el-button
@@ -737,6 +962,56 @@ function fmtMoney(n: number) {
             placeholder="如：超市买菜 / 物业费"
           />
         </el-form-item>
+
+        <!-- v2026-09-07 自由标签:跨分类筛选用,如 #旅游 #出差 #可报销 -->
+        <el-form-item label="标签" class="form-full">
+          <div class="tag-editor">
+            <div v-if="form.tags.length > 0" class="tag-chips">
+              <el-tag
+                v-for="t in form.tags"
+                :key="t"
+                closable
+                size="default"
+                type="success"
+                effect="light"
+                @close="removeTag(t)"
+              >
+                #{{ t }}
+              </el-tag>
+            </div>
+            <el-input
+              v-model="form.tagInput"
+              size="default"
+              placeholder="输入标签后回车或逗号分隔，如：旅游 / 出差 / 可报销"
+              :maxlength="64"
+              @keyup.enter="commitTagInput"
+              @keydown.enter.prevent
+              @paste="(e) => {
+                // 支持一次粘贴多个（Excel / 微信 拆 CSV）
+                const text = e.clipboardData?.getData('text') || ''
+                if (/[,，;；、\s\n\r]/.test(text)) {
+                  e.preventDefault()
+                  form.value.tagInput = (form.value.tagInput || '') + text
+                  commitTagInput()
+                }
+              }"
+              @blur="commitTagInput"
+            />
+            <div v-if="tagSuggestions.length > 0" class="tag-suggestions">
+              <span class="tag-suggest-label">常用：</span>
+              <el-button
+                v-for="t in tagSuggestions"
+                :key="t"
+                link
+                type="primary"
+                size="small"
+                @click="form.tags.push(t)"
+              >
+                +{{ t }}
+              </el-button>
+            </div>
+          </div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -796,6 +1071,46 @@ function fmtMoney(n: number) {
             />
           </el-select>
         </el-form-item>
+        <!-- v2026-09-07 标签筛选:跨分类聚合(关键场景:看"旅游花了多少"——机票+酒店+门票) -->
+        <el-form-item label="标签">
+          <div class="filter-tag-block">
+            <div v-if="store.filter.tagKeywords.length" class="tag-chips">
+              <el-tag
+                v-for="t in store.filter.tagKeywords"
+                :key="t"
+                closable
+                size="default"
+                type="success"
+                effect="light"
+                @close="store.filter.tagKeywords = store.filter.tagKeywords.filter((x) => x !== t)"
+              >
+                #{{ t }}
+              </el-tag>
+            </div>
+            <el-input
+              v-model="filterTagInput"
+              size="default"
+              placeholder="输入标签后回车/逗号/失焦添加(OR 关系:任一命中即中)"
+              :maxlength="64"
+              @keyup.enter="commitFilterTagInput"
+              @keydown.enter.prevent
+              @blur="commitFilterTagInput"
+            />
+            <div v-if="filterTagSuggestions.length" class="tag-suggestions">
+              <span class="tag-suggest-label">历史：</span>
+              <el-button
+                v-for="t in filterTagSuggestions"
+                :key="t"
+                link
+                type="primary"
+                size="small"
+                @click="addFilterTag(t)"
+              >
+                +{{ t }}
+              </el-button>
+            </div>
+          </div>
+        </el-form-item>
         <el-form-item label="金额区间">
           <div style="display: flex; gap: 10px; align-items: center">
             <el-input-number
@@ -818,7 +1133,7 @@ function fmtMoney(n: number) {
       </el-form>
       <template #footer>
         <el-button
-          @click="store.filter.categoryIds = []; store.filter.memberIds = []; store.filter.minAmount = undefined; store.filter.maxAmount = undefined"
+          @click="store.filter.categoryIds = []; store.filter.memberIds = []; store.filter.minAmount = undefined; store.filter.maxAmount = undefined; store.filter.tagKeywords = []; filterTagInput = ''"
         >
           清空
         </el-button>
@@ -1592,5 +1907,46 @@ function fmtMoney(n: number) {
   .cat-cell-sm:hover {
     transform: none;
   }
+}
+
+/* v2026-09-07 标签编辑器(记账表单) */
+.tag-editor {
+  width: 100%;
+}
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.tag-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--color-text-soft);
+}
+.tag-suggest-label {
+  margin-right: 4px;
+}
+.filter-tag-block {
+  width: 100%;
+}
+
+/* v2026-09-07 列表行内 tag 显示 */
+.cell-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  vertical-align: middle;
+}
+.cell-tags .el-tag {
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 18px;
+  border-radius: 6px;
 }
 </style>
