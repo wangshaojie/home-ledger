@@ -293,24 +293,54 @@ function openForm() {
 }
 
 function openEdit(e: any) {
-  // 分摊记录必须整组处理，禁止单独编辑
-  if (e.group_id) {
-    notify.info('分摊记录需整组处理，暂不支持单独编辑。如需修改，请删除整组后重新记账')
-    return
-  }
   editingId.value = e.id
-  form.value = {
-    amount: String(e.amount),
-    categoryId: e.category_id,
-    accountId: e.account_id || accountStore.items[0]?.id || '',
-    memberIds: [e.member_id],
-    payerId: e.payer_id || e.member_id,
-    spentAt: new Date(e.spent_at),
-    note: e.note || '',
-    splitMode: 'equal',
-    splitAmounts: {},
-    tags: [...(e.tags || [])],
-    tagInput: ''
+
+  if (e.group_id) {
+    // v2026-09-07 分摊整组编辑:从 store.items 拉整组(group_id 命中的所有子记录)预填表单
+    // group_id 保持稳定,SQL 端走 update_shared_expense RPC 一次性 UPDATE
+    // 成员数变化走"删整组 + addShared"分支(在 submitForm 里判断)
+    const group = store.items.filter((it) => it.group_id === e.group_id)
+    if (group.length === 0) {
+      notify.error('找不到该分摊组的子记录，请刷新页面')
+      return
+    }
+    const head = group[0]
+    const total = group.reduce((s, it) => s + Number(it.amount), 0)
+    // 判断均分 vs 自定义:每条都精确等于 1/N(允许 1 分钱舍入差)
+    const per = total / group.length
+    const isEqual = group.every((it) => Math.abs(Number(it.amount) - per) < 0.01)
+    const splitAmounts: Record<string, number> = {}
+    for (const it of group) {
+      splitAmounts[it.member_id] = Number(it.amount)
+    }
+    form.value = {
+      amount: total.toFixed(2),
+      categoryId: head.category_id,
+      accountId: head.account_id || accountStore.items[0]?.id || '',
+      memberIds: group.map((it) => it.member_id),
+      payerId: head.payer_id || head.member_id,
+      spentAt: new Date(head.spent_at),
+      note: head.note || '',
+      splitMode: isEqual ? 'equal' : 'custom',
+      splitAmounts,
+      tags: [...(head.tags || [])],
+      tagInput: ''
+    }
+  } else {
+    // 单条编辑(原逻辑)
+    form.value = {
+      amount: String(e.amount),
+      categoryId: e.category_id,
+      accountId: e.account_id || accountStore.items[0]?.id || '',
+      memberIds: [e.member_id],
+      payerId: e.payer_id || e.member_id,
+      spentAt: new Date(e.spent_at),
+      note: e.note || '',
+      splitMode: 'equal',
+      splitAmounts: {},
+      tags: [...(e.tags || [])],
+      tagInput: ''
+    }
   }
   formVisible.value = true
 }
@@ -360,24 +390,111 @@ async function submitForm() {
     if (editingId.value) {
       // 提交前先把输入框里残留的 tag 文本收一下
       commitTagInput()
-      // 编辑模式（分摊记录已在 openEdit 拦截，这里只处理单条）
-      const r = await store.update(editingId.value, {
-        amount: amt,
-        categoryId: form.value.categoryId,
-        accountId: form.value.accountId,
-        memberId: form.value.memberIds[0],
-        payerId: form.value.payerId,
-        spentAt: spentAtDate.toISOString(),
-        note: form.value.note.trim().slice(0, 200),
-        tags: form.value.tags
-      })
-      if (r.ok) {
-        markCategoryUsed(familyStore.family?.id, form.value.categoryId)
-        closeForm()
-        notify.success(r.message)
-        void statsPanelRef.value?.reload()
+      // v2026-09-07 编辑模式:分摊整组(group_id 非空)走 updateShared,其他单条走 update
+      const editingItem = store.items.find((it) => it.id === editingId.value)
+      const isShared = editingItem && !!editingItem.group_id
+
+      if (isShared) {
+        // 检查成员数是否变化:原 group 成员 vs 新 memberIds
+        const originalMembers = store.items
+          .filter((it) => it.group_id === editingItem!.group_id)
+          .map((it) => it.member_id)
+          .sort()
+        const newMembers = [...form.value.memberIds].sort()
+        const membersChanged =
+          originalMembers.length !== newMembers.length ||
+          originalMembers.some((m, i) => m !== newMembers[i])
+
+        if (membersChanged) {
+          // 成员数变化:走"删整组 + addShared"分支,group_id 重新生成
+          // 自定义模式下校验 splits 合计
+          if (form.value.splitMode === 'custom') {
+            const total = splitTotal.value
+            if (Math.abs(total - amt) > 0.01) {
+              notify.error(`分摊金额合计 ¥${total.toFixed(2)} 与总金额 ¥${amt.toFixed(2)} 不一致，请调整`)
+              return
+            }
+          }
+          const splits = splitPreview.value
+            .map((s) => ({ memberId: s.memberId, amount: round2(s.amount) }))
+            .filter((s) => s.amount > 0)
+          // 1) 删整组
+          const del = await store.remove(editingItem!.group_id!)
+          if (!del.ok) {
+            notify.error('删除原分摊组失败: ' + del.message)
+            return
+          }
+          // 2) addShared 新整组
+          const add = await store.addShared({
+            splits,
+            payerId: form.value.payerId,
+            categoryId: form.value.categoryId,
+            accountId: form.value.accountId,
+            spentAt: spentAtDate.toISOString(),
+            note: form.value.note.trim().slice(0, 200),
+            tags: form.value.tags
+          })
+          if (add.ok) {
+            markCategoryUsed(familyStore.family?.id, form.value.categoryId)
+            closeForm()
+            notify.success('已更新(成员变动,整组重建)')
+            void statsPanelRef.value?.reload()
+          } else {
+            notify.error(add.message)
+          }
+        } else {
+          // 成员数不变:走 updateShared(RPC 一次性 UPDATE 整组,group_id 稳定)
+          let splits: { memberId: string; amount: number }[] | undefined
+          if (form.value.splitMode === 'custom') {
+            const total = splitTotal.value
+            if (Math.abs(total - amt) > 0.01) {
+              notify.error(`分摊金额合计 ¥${total.toFixed(2)} 与总金额 ¥${amt.toFixed(2)} 不一致，请调整`)
+              return
+            }
+            splits = splitPreview.value
+              .map((s) => ({ memberId: s.memberId, amount: round2(s.amount) }))
+              .filter((s) => s.amount > 0)
+          }
+          const r = await store.updateShared({
+            groupId: editingItem!.group_id!,
+            amount: amt,
+            categoryId: form.value.categoryId,
+            accountId: form.value.accountId,
+            payerId: form.value.payerId,
+            spentAt: spentAtDate.toISOString(),
+            note: form.value.note.trim().slice(0, 200),
+            tags: form.value.tags,
+            splits
+          })
+          if (r.ok) {
+            markCategoryUsed(familyStore.family?.id, form.value.categoryId)
+            closeForm()
+            notify.success(r.message)
+            void statsPanelRef.value?.reload()
+          } else {
+            notify.error(r.message)
+          }
+        }
       } else {
-        notify.error(r.message)
+        // 单条编辑
+        const r = await store.update(editingId.value, {
+          amount: amt,
+          categoryId: form.value.categoryId,
+          accountId: form.value.accountId,
+          memberId: form.value.memberIds[0],
+          payerId: form.value.payerId,
+          spentAt: spentAtDate.toISOString(),
+          note: form.value.note.trim().slice(0, 200),
+          tags: form.value.tags
+        })
+        if (r.ok) {
+          markCategoryUsed(familyStore.family?.id, form.value.categoryId)
+          closeForm()
+          notify.success(r.message)
+          void statsPanelRef.value?.reload()
+        } else {
+          notify.error(r.message)
+        }
       }
     } else if (form.value.memberIds.length > 1) {
       // 多人分摊（方案 C）：按均分/自定义拆分后批量插入

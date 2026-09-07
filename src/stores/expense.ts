@@ -513,6 +513,74 @@ export const useExpenseStore = defineStore('expense', () => {
   }
 
   /**
+   * v2026-09-07 整组更新分摊(group_id 保持不变)
+   * 走 RPC update_shared_expense,SQL 端一次性把整组 amount / category /
+   * account / payer / spent_at / note / tags 全部 UPDATE,group_id 保持稳定。
+   *
+   * splits 不传 → SQL 端按现有成员数均分
+   * splits 传了 → SQL 端校验合计 ≈ total,按 member_id UPDATE 每条
+   *
+   * 成员数变化(N 变)不通过本方法,前端走"删整组 + addShared"分支
+   */
+  async function updateShared(payload: {
+    groupId: string
+    amount: number
+    categoryId: string
+    accountId: string
+    payerId: string
+    spentAt: string
+    note: string
+    tags?: string[]
+    splits?: { memberId: string; amount: number }[]
+  }) {
+    const splitsJson = payload.splits
+      ? JSON.stringify(
+          payload.splits.map((s) => ({
+            member_id: s.memberId,
+            amount: s.amount
+          }))
+        )
+      : null
+    const { data, error } = await supabase.rpc('update_shared_expense', {
+      p_group_id: payload.groupId,
+      p_total_amount: payload.amount,
+      p_category_id: payload.categoryId,
+      p_account_id: payload.accountId,
+      p_payer_id: payload.payerId,
+      p_spent_at: payload.spentAt,
+      p_note: payload.note,
+      p_tags: payload.tags || [],
+      p_splits: splitsJson
+    })
+    if (error) return { ok: false, message: errText(error, '更新失败') }
+    // 本地更新:把 group_id 命中的所有 items 的 amount / category / account /
+    // payer / spent_at / note / tags 同步成新值
+    // 从返回的 splits 反查每条子记录的 member_id → 新 amount
+    const memberAmountMap = new Map<string, number>()
+    for (const r of data as Array<{ member_id: string; amount: number }>) {
+      memberAmountMap.set(r.member_id, Number(r.amount))
+    }
+    items.value = items.value.map((it) => {
+      if (it.group_id !== payload.groupId) return it
+      const newAmt = memberAmountMap.get(it.member_id)
+      if (newAmt === undefined) return it
+      return {
+        ...it,
+        amount: newAmt,
+        category_id: payload.categoryId,
+        account_id: payload.accountId,
+        payer_id: payload.payerId,
+        spent_at: payload.spentAt,
+        note: payload.note,
+        tags: payload.tags || []
+      }
+    })
+    revision.value++
+    void loadTotals()
+    return { ok: true, message: '已更新' }
+  }
+
+  /**
    * v2026-09-01 多人分摊（方案 C）
    * 一笔总费用按成员拆成多条子记录，共享同一个 group_id，方便整组删除
    * 分摊金额由调用方算好（均分/自定义），这里只负责批量插入
@@ -634,6 +702,7 @@ export const useExpenseStore = defineStore('expense', () => {
     add,
     addShared,
     update,
+    updateShared,
     remove,
     reset
   }
