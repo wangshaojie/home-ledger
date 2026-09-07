@@ -252,6 +252,71 @@ const sharedGroupFirstMap = computed(() => {
   return map
 })
 
+// v2026-09-07 折叠:把 filteredExpenses 折叠成"项"序列。
+// 单条账(group_id 为空)= 一个独立项 kind=single
+// 分摊组(同 group_id)= 一个项 kind=group + groupExpenses(组内明细)
+// 模板用 kind 区分渲染,默认折叠(用户点击再展开)
+interface GroupItem {
+  kind: 'single' | 'group'
+  // single:head = 那个账; group:head = 整组第一条(用来预填 category/account/payer 等)
+  head: any
+  // group 才有:组内所有子记录
+  groupExpenses?: any[]
+  // group 才有:组内成员名字汇总(展示用)
+  memberSummary?: string
+  // 整组总金额(单条就是 head.amount,group 是 sum)
+  totalAmount: number
+}
+const listItems = computed<GroupItem[]>(() => {
+  const arr = store.filteredExpenses
+  const items: GroupItem[] = []
+  let i = 0
+  while (i < arr.length) {
+    const e = arr[i]
+    if (!e.group_id) {
+      // 单条:独立一项
+      items.push({ kind: 'single', head: e, totalAmount: Number(e.amount) })
+      i++
+      continue
+    }
+    // 分摊组:往后扫到 group_id 不同的行
+    const groupId = e.group_id
+    const members: any[] = [e]
+    let j = i + 1
+    while (j < arr.length && arr[j].group_id === groupId) {
+      members.push(arr[j])
+      j++
+    }
+    // 拼成员名"爸/妈/宝(3人)"
+    const names = members.map((m) => getMemberLabel(m.member_id))
+    const total = members.reduce((s, m) => s + Number(m.amount), 0)
+    items.push({
+      kind: 'group',
+      head: e,
+      groupExpenses: members,
+      memberSummary: names.length <= 3
+        ? `${names.join(' / ')}(${names.length}人)`
+        : `${names.slice(0, 2).join(' / ')} 等${names.length}人`,
+      totalAmount: total
+    })
+    i = j
+  }
+  return items
+})
+
+// v2026-09-07 折叠状态:Set<group_id>,在内存里;刷新后重置(用户选了 local_only)
+// 默认全部折叠
+const expandedGroups = ref<Set<string>>(new Set())
+function toggleGroup(groupId: string) {
+  if (expandedGroups.value.has(groupId)) expandedGroups.value.delete(groupId)
+  else expandedGroups.value.add(groupId)
+  // 触发响应式更新(Set 没有 deep watch,需要 replace 一下)
+  expandedGroups.value = new Set(expandedGroups.value)
+}
+function isGroupExpanded(groupId: string): boolean {
+  return expandedGroups.value.has(groupId)
+}
+
 const memberOptions = computed(() =>
   familyStore.members.map((m) => ({
     id: m.id,
@@ -928,77 +993,181 @@ const tagSuggestions = computed(() =>
         <span style="text-align: right">操作</span>
       </div>
       <TransitionGroup name="row" tag="div" class="list-body">
-        <div
-          v-for="e in store.filteredExpenses"
-          :key="e.id"
-          class="list-row"
-          :class="{
-            'is-shared': !!e.group_id,
-            'is-shared-first': !!sharedGroupFirstMap.get(e.id)
-          }"
-        >
-        <span class="cell-time">{{ formatDate(e.spent_at) }}</span>
-        <span class="cell-member">
-          <span class="member-main">
-            {{ getMemberLabel(e.member_id) }}
-            <span v-if="e.group_id" class="split-badge">分摊</span>
-          </span>
-          <span v-if="e.payer_id && e.payer_id !== e.member_id" class="member-payer">
-            <span class="payer-prefix">{{ getPayerLabel(e.payer_id) }} 付</span>
-          </span>
-        </span>
-        <span>
-          <span class="cat-chip">
-            <span class="cat-icon">{{ getCategory(e.category_id)?.icon }}</span>
-            {{ getCategory(e.category_id)?.name }}
-          </span>
-        </span>
-        <span>
-          <span v-if="getAccount(e.account_id)" class="acc-chip">
-            <span class="acc-icon">{{ getAccount(e.account_id)?.icon }}</span>
-            {{ getAccount(e.account_id)?.name }}
-          </span>
-          <span v-else class="muted">-</span>
-        </span>
-        <span class="cell-note">
-          {{ e.note || '-' }}
-          <!-- v2026-09-07 标签 chip:点击可加为筛选条件 -->
-          <span v-if="e.tags && e.tags.length" class="cell-tags">
-            <el-tag
-              v-for="t in e.tags"
-              :key="t"
-              size="small"
-              type="success"
-              effect="plain"
-              class="clickable"
-              @click="onTagClick(t)"
-            >
-              #{{ t }}
-            </el-tag>
-          </span>
-        </span>
-        <span class="cell-amount">{{ fmtMoney(e.amount) }}</span>
-        <span class="cell-actions">
-          <el-button
-            text
-            type="primary"
-            size="small"
-            :disabled="!canEditExpense()"
-            @click="openEdit(e)"
+        <template v-for="(item, idx) in listItems" :key="item.head.id">
+          <!-- 分摊组:汇总行 + 可选子行 -->
+          <template v-if="item.kind === 'group'">
+            <!-- 汇总行 -->
+            <div class="list-row list-row--group-head" :class="{ 'is-shared': true }">
+              <span class="cell-time">{{ formatDate(item.head.spent_at) }}</span>
+              <span class="cell-member">
+                <span class="member-main">
+                  {{ item.memberSummary }}
+                  <span class="split-badge">分摊 {{ item.groupExpenses!.length }} 份</span>
+                </span>
+                <span v-if="item.head.payer_id && item.head.payer_id !== item.head.member_id" class="member-payer">
+                  <span class="payer-prefix">{{ getPayerLabel(item.head.payer_id) }} 付</span>
+                </span>
+              </span>
+              <span>
+                <span class="cat-chip">
+                  <span class="cat-icon">{{ getCategory(item.head.category_id)?.icon }}</span>
+                  {{ getCategory(item.head.category_id)?.name }}
+                </span>
+              </span>
+              <span>
+                <span v-if="getAccount(item.head.account_id)" class="acc-chip">
+                  <span class="acc-icon">{{ getAccount(item.head.account_id)?.icon }}</span>
+                  {{ getAccount(item.head.account_id)?.name }}
+                </span>
+                <span v-else class="muted">-</span>
+              </span>
+              <span class="cell-note">
+                {{ item.head.note || '-' }}
+                <span v-if="item.head.tags && item.head.tags.length" class="cell-tags">
+                  <el-tag
+                    v-for="t in item.head.tags"
+                    :key="t"
+                    size="small"
+                    type="success"
+                    effect="plain"
+                    class="clickable"
+                    @click="onTagClick(t)"
+                  >
+                    #{{ t }}
+                  </el-tag>
+                </span>
+              </span>
+              <span class="cell-amount">{{ fmtMoney(item.totalAmount) }}</span>
+              <span class="cell-actions">
+                <el-button
+                  text
+                  size="small"
+                  :title="isGroupExpanded(item.head.group_id) ? '折叠明细' : '展开明细'"
+                  @click="toggleGroup(item.head.group_id)"
+                >
+                  <el-icon v-if="isGroupExpanded(item.head.group_id)"><ArrowUp /></el-icon>
+                  <el-icon v-else><ArrowDown /></el-icon>
+                </el-button>
+                <el-button
+                  text
+                  type="primary"
+                  size="small"
+                  :disabled="!canEditExpense()"
+                  @click="openEdit(item.head)"
+                >
+                  <el-icon><Edit /></el-icon>
+                </el-button>
+                <el-button
+                  text
+                  type="danger"
+                  size="small"
+                  :disabled="!canEditExpense()"
+                  @click="deleteOne(item.head)"
+                >
+                  <el-icon><Delete /></el-icon>
+                </el-button>
+              </span>
+            </div>
+            <!-- 子行(展开时显示) -->
+            <TransitionGroup name="child" tag="div" v-if="isGroupExpanded(item.head.group_id)">
+              <div
+                v-for="(sub, subIdx) in item.groupExpenses"
+                :key="sub.id"
+                class="list-row list-row--group-child"
+                :class="{ 'is-shared-child-first': subIdx === 0 }"
+              >
+                <span class="cell-time">{{ formatDate(sub.spent_at) }}</span>
+                <span class="cell-member">
+                  <span class="member-main">
+                    <span class="child-tree">├─</span>
+                    {{ getMemberLabel(sub.member_id) }}
+                  </span>
+                </span>
+                <span>
+                  <span class="cat-chip">
+                    <span class="cat-icon">{{ getCategory(sub.category_id)?.icon }}</span>
+                    {{ getCategory(sub.category_id)?.name }}
+                  </span>
+                </span>
+                <span>
+                  <span v-if="getAccount(sub.account_id)" class="acc-chip">
+                    <span class="acc-icon">{{ getAccount(sub.account_id)?.icon }}</span>
+                    {{ getAccount(sub.account_id)?.name }}
+                  </span>
+                  <span v-else class="muted">-</span>
+                </span>
+                <span class="cell-note muted">-</span>
+                <span class="cell-amount">{{ fmtMoney(sub.amount) }}</span>
+                <span class="cell-actions"></span>
+              </div>
+            </TransitionGroup>
+          </template>
+          <!-- 单条账:原 1 行不变 -->
+          <div
+            v-else
+            class="list-row"
           >
-            <el-icon><Edit /></el-icon>
-          </el-button>
-          <el-button
-            text
-            type="danger"
-            size="small"
-            :disabled="!canEditExpense()"
-            @click="deleteOne(e)"
-          >
-            <el-icon><Delete /></el-icon>
-          </el-button>
-        </span>
-        </div>
+            <span class="cell-time">{{ formatDate(item.head.spent_at) }}</span>
+            <span class="cell-member">
+              <span class="member-main">
+                {{ getMemberLabel(item.head.member_id) }}
+              </span>
+              <span v-if="item.head.payer_id && item.head.payer_id !== item.head.member_id" class="member-payer">
+                <span class="payer-prefix">{{ getPayerLabel(item.head.payer_id) }} 付</span>
+              </span>
+            </span>
+            <span>
+              <span class="cat-chip">
+                <span class="cat-icon">{{ getCategory(item.head.category_id)?.icon }}</span>
+                {{ getCategory(item.head.category_id)?.name }}
+              </span>
+            </span>
+            <span>
+              <span v-if="getAccount(item.head.account_id)" class="acc-chip">
+                <span class="acc-icon">{{ getAccount(item.head.account_id)?.icon }}</span>
+                {{ getAccount(item.head.account_id)?.name }}
+              </span>
+              <span v-else class="muted">-</span>
+            </span>
+            <span class="cell-note">
+              {{ item.head.note || '-' }}
+              <span v-if="item.head.tags && item.head.tags.length" class="cell-tags">
+                <el-tag
+                  v-for="t in item.head.tags"
+                  :key="t"
+                  size="small"
+                  type="success"
+                  effect="plain"
+                  class="clickable"
+                  @click="onTagClick(t)"
+                >
+                  #{{ t }}
+                </el-tag>
+              </span>
+            </span>
+            <span class="cell-amount">{{ fmtMoney(item.head.amount) }}</span>
+            <span class="cell-actions">
+              <el-button
+                text
+                type="primary"
+                size="small"
+                :disabled="!canEditExpense()"
+                @click="openEdit(item.head)"
+              >
+                <el-icon><Edit /></el-icon>
+              </el-button>
+              <el-button
+                text
+                type="danger"
+                size="small"
+                :disabled="!canEditExpense()"
+                @click="deleteOne(item.head)"
+              >
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </span>
+          </div>
+        </template>
       </TransitionGroup>
       <div v-if="store.filteredExpenses.length === 0" class="empty">
         <div class="empty-icon"><el-icon><Wallet /></el-icon></div>
@@ -1685,6 +1854,35 @@ const tagSuggestions = computed(() =>
 .list-row.is-shared .split-badge {
   background: rgba(47, 181, 95, 0.18);
   color: #1f8a4a;
+}
+
+/* v2026-09-07 折叠:分摊组的子行(展开后显示)
+   - 视觉嵌套在 group-head 下面,左侧加缩进 + tree 字符(├─)
+   - 仍然用浅绿底延续分组感(色更深一档,跟"汇总行"区分)
+   - 不带 is-shared-first 顶线(只有汇总行带) */
+.list-row--group-child {
+  background: rgba(47, 181, 95, 0.07);
+  padding-left: 28px;
+}
+.list-row--group-child:hover {
+  background: rgba(47, 181, 95, 0.12);
+}
+.child-tree {
+  display: inline-block;
+  color: rgba(47, 181, 95, 0.6);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  margin-right: 6px;
+  width: 14px;
+  display: inline-block;
+}
+/* 子行 TransitionGroup(name=child) 进入/离开动画 */
+.child-enter-active, .child-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.child-enter-from, .child-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 .cell-time {
   color: var(--color-text-soft);
