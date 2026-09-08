@@ -25,8 +25,9 @@ export interface Expense {
   tags: string[]
   // 关联表 join 出来的可选字段
   // v1.1: member 指向 family_members（不再指向 profiles）
-  member?: { id: string; name: string; type: 'adult' | 'child' | 'pet' } | null
-  payer?: { id: string; name: string; type: 'adult' | 'child' | 'pet' } | null
+  // v2026-09-08: type 含 'family'（"家庭"虚拟成员，公共开销维度）
+  member?: { id: string; name: string; type: 'adult' | 'child' | 'pet' | 'family' } | null
+  payer?: { id: string; name: string; type: 'adult' | 'child' | 'pet' | 'family' } | null
   category?: { id: string; name: string; icon: string } | null
   account?: { id: string; name: string; icon: string } | null
 }
@@ -533,13 +534,15 @@ export const useExpenseStore = defineStore('expense', () => {
     tags?: string[]
     splits?: { memberId: string; amount: number }[]
   }) {
-    const splitsJson = payload.splits
-      ? JSON.stringify(
-          payload.splits.map((s) => ({
-            member_id: s.memberId,
-            amount: s.amount
-          }))
-        )
+    // ⚠️ p_splits 必须直接传数组(对象),不能 JSON.stringify:
+    // PostgREST 会把 body 里的值原样作为 jsonb 传给函数,
+    // 传字符串时 SQL 端 jsonb_typeof(p_splits) = 'string'(不是 'array'),
+    // 会走"按库中原有成员均分"的兜底分支 → 增/减员完全不生效。
+    const splitsParam = payload.splits
+      ? payload.splits.map((s) => ({
+          member_id: s.memberId,
+          amount: s.amount
+        }))
       : null
     const { data, error } = await supabase.rpc('update_shared_expense', {
       p_group_id: payload.groupId,
@@ -550,33 +553,13 @@ export const useExpenseStore = defineStore('expense', () => {
       p_spent_at: payload.spentAt,
       p_note: payload.note,
       p_tags: payload.tags || [],
-      p_splits: splitsJson
+      p_splits: splitsParam
     })
     if (error) return { ok: false, message: errText(error, '更新失败') }
-    // 本地更新:把 group_id 命中的所有 items 的 amount / category / account /
-    // payer / spent_at / note / tags 同步成新值
-    // 从返回的 splits 反查每条子记录的 member_id → 新 amount
-    const memberAmountMap = new Map<string, number>()
-    for (const r of data as Array<{ member_id: string; amount: number }>) {
-      memberAmountMap.set(r.member_id, Number(r.amount))
-    }
-    items.value = items.value.map((it) => {
-      if (it.group_id !== payload.groupId) return it
-      const newAmt = memberAmountMap.get(it.member_id)
-      if (newAmt === undefined) return it
-      return {
-        ...it,
-        amount: newAmt,
-        category_id: payload.categoryId,
-        account_id: payload.accountId,
-        payer_id: payload.payerId,
-        spent_at: payload.spentAt,
-        note: payload.note,
-        tags: payload.tags || []
-      }
-    })
-    revision.value++
-    void loadTotals()
+    // v2026-09-08:成员集合可能变化(增/减),RPC 返回的精简记录(
+    //   只含 id/member_id/amount)不足以本地拼出完整 Expense。
+    //   直接 load() 全量重拉,跟 update() 单条走同一路径,保证一致。
+    await load()
     return { ok: true, message: '已更新' }
   }
 

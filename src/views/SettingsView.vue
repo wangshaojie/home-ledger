@@ -41,6 +41,13 @@ const showAddCategory = ref(false)
 const newCategoryName = ref('')
 const newCategoryIcon = ref('📦')
 
+/** 常用分类图标快捷选择 */
+const CATEGORY_ICON_CHOICES = [
+  '🍔', '🛒', '🚇', '🚗', '✈️', '🏠', '💡', '📱',
+  '💊', '🏥', '🎓', '📚', '🎬', '🎮', '👕', '🐶',
+  '🐱', '🌹', '🎁', '☕', '🍜', '🍎', '⚽', '💼'
+]
+
 const showJoinFamily = ref(false)
 const inviteInput = ref('')
 
@@ -58,6 +65,7 @@ function typeIcon(t: string) {
   if (t === 'adult') return '👤'
   if (t === 'child') return '🧒'
   if (t === 'pet') return '🐾'
+  if (t === 'family') return '🏠'
   return '·'
 }
 
@@ -298,6 +306,8 @@ async function removeCategory(id: string) {
 }
 
 function openAddCategoryDialog() {
+  newCategoryName.value = ''
+  newCategoryIcon.value = '📦'
   showAddCategory.value = true
 }
 
@@ -529,15 +539,18 @@ async function wipeLocalData() {
             {{ m.name }}
             <span v-if="m.linked_profile_id && m.linked_profile_id === familyStore.family?.created_by" class="role-tag">创建者</span>
             <span v-else-if="m.linked_profile_id === auth.user?.id" class="role-tag self">我</span>
+            <span v-else-if="m.type === 'family'" class="role-tag family">家庭</span>
             <span v-else-if="m.type === 'child'" class="role-tag child">小孩</span>
             <span v-else-if="m.type === 'pet'" class="role-tag pet">宠物</span>
           </div>
           <div class="member-email">
             <span v-if="m.linked_profile_id">已关联账号 · {{ fmtDate(m.created_at) }} 加入</span>
+            <span v-else-if="m.type === 'family'">公共开销维度 · 记账选它则不计入任何个人（可改名，如"家用"）</span>
             <span v-else>未关联账号 · 父母代记账</span>
           </div>
         </div>
-        <span v-if="!m.linked_profile_id" class="member-actions">
+        <!-- v2026-09-08 "家庭"虚拟成员不提供删除/移出（它是公共开销统计维度） -->
+        <span v-if="!m.linked_profile_id && m.type !== 'family'" class="member-actions">
           <el-button text type="danger" size="small" @click="removeMember(m.id, m.name)">
             删除
           </el-button>
@@ -677,8 +690,22 @@ async function wipeLocalData() {
         <el-form-item label="分类名">
           <el-input v-model="newCategoryName" placeholder="如：宠物 / 旅行" maxlength="10" />
         </el-form-item>
-        <el-form-item label="图标 (emoji)">
-          <el-input v-model="newCategoryIcon" maxlength="2" />
+        <el-form-item label="图标">
+          <div class="icon-choices">
+            <span
+              v-for="ic in CATEGORY_ICON_CHOICES"
+              :key="ic"
+              class="icon-choice"
+              :class="{ active: newCategoryIcon === ic }"
+              @click="newCategoryIcon = ic"
+            >{{ ic }}</span>
+          </div>
+          <el-input
+            v-model="newCategoryIcon"
+            maxlength="2"
+            class="icon-input"
+            placeholder="或自定义 emoji"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -710,6 +737,39 @@ async function wipeLocalData() {
   max-width: 1200px;
   margin: 0 auto;
 }
+
+/* 分类管理 - emoji 图标选择器（与 AccountsView 风格一致） */
+.icon-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.icon-choice {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  cursor: pointer;
+  background: #fff;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.icon-choice:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px -2px rgba(245, 108, 44, 0.25);
+}
+.icon-choice.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  box-shadow: 0 0 0 2px rgba(245, 108, 44, 0.18), 0 4px 10px -2px rgba(245, 108, 44, 0.3);
+  color: var(--color-primary);
+}
+.icon-input { width: 140px; }
 .page-header {
   display: flex;
   align-items: flex-end;
@@ -968,6 +1028,11 @@ async function wipeLocalData() {
   background: var(--color-green-soft);
   color: var(--color-green);
   border-color: rgba(47, 181, 95, 0.18);
+}
+.role-tag.family {
+  background: var(--color-purple-soft);
+  color: var(--color-purple);
+  border-color: rgba(138, 99, 244, 0.18);
 }
 .member-email { color: var(--color-text-soft); font-size: 12px; }
 .empty-mini {

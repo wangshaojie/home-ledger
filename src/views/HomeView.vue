@@ -287,6 +287,14 @@ const listItems = computed<GroupItem[]>(() => {
       members.push(arr[j])
       j++
     }
+    // v2026-09-08 组内只剩 1 条(如多人分摊改成"家庭"1 人)→ 按普通单条渲染:
+    // 不折叠、不显示"分摊 1 份"徽章、无展开按钮,与新增单条记账完全一致。
+    // SQL 端 update_shared_expense 会同步清掉 group_id,这里兜底历史存量数据。
+    if (members.length === 1) {
+      items.push({ kind: 'single', head: e, totalAmount: Number(e.amount) })
+      i = j
+      continue
+    }
     // 拼成员名"爸/妈/宝(3人)"
     const names = members.map((m) => getMemberLabel(m.member_id))
     const total = members.reduce((s, m) => s + Number(m.amount), 0)
@@ -320,8 +328,16 @@ function isGroupExpanded(groupId: string): boolean {
 const memberOptions = computed(() =>
   familyStore.members.map((m) => ({
     id: m.id,
-    label: displayNameOf(m)
+    // v2026-09-08 "家庭"虚拟成员(公共开销维度)加 🏠 前缀,跟真人区分
+    label: m.type === 'family' ? `🏠 ${displayNameOf(m)}` : displayNameOf(m)
   }))
+)
+
+// v2026-09-08 付款人选项排除"家庭"虚拟成员:付款必须是真人(谁掏的钱)
+const payerOptions = computed(() =>
+  familyStore.members
+    .filter((m) => m.type !== 'family')
+    .map((m) => ({ id: m.id, label: displayNameOf(m) }))
 )
 
 const accountOptions = computed(() =>
@@ -479,85 +495,51 @@ async function submitForm() {
       const isShared = editingItem && !!editingItem.group_id
 
       if (isShared) {
-        // 检查成员数是否变化:原 group 成员 vs 新 memberIds
-        const originalMembers = store.items
-          .filter((it) => it.group_id === editingItem!.group_id)
-          .map((it) => it.member_id)
-          .sort()
-        const newMembers = [...form.value.memberIds].sort()
-        const membersChanged =
-          originalMembers.length !== newMembers.length ||
-          originalMembers.some((m, i) => m !== newMembers[i])
-
-        if (membersChanged) {
-          // 成员数变化:走"删整组 + addShared"分支,group_id 重新生成
-          // 自定义模式下校验 splits 合计
-          if (form.value.splitMode === 'custom') {
-            const total = splitTotal.value
-            if (Math.abs(total - amt) > 0.01) {
-              notify.error(`分摊金额合计 ¥${total.toFixed(2)} 与总金额 ¥${amt.toFixed(2)} 不一致，请调整`)
-              return
-            }
-          }
-          const splits = splitPreview.value
-            .map((s) => ({ memberId: s.memberId, amount: round2(s.amount) }))
-            .filter((s) => s.amount > 0)
-          // 1) 删整组
-          const del = await store.remove(editingItem!.group_id!)
-          if (!del.ok) {
-            notify.error('删除原分摊组失败: ' + del.message)
+        // v2026-09-08 分摊整组编辑统一走 updateShared(RPC 一次性 UPDATE,group_id 保持稳定)
+        // 成员数变化(增/减)由 RPC 内部处理:
+        //   - 现存但不在新集合 → 软删(deleted_at)
+        //   - 新集合有但不存在 → INSERT 新子记录
+        //   - 都有的成员 → UPDATE amount / 其它字段
+        // 好处:group_id 不变,列表折叠/统计图按 group_id 聚合零改动,
+        //      数据库里没有"修改前 + 修改后"两条 group 的残留数据。
+        //
+        // ⚠️ custom 模式下 splits 必须跟 form.value.memberIds 一一对应,
+        //     不可 .filter 掉 0 金额成员(SQL 端会按"集合差集"增删,过滤掉 0 金额会
+        //     跟 memberIds 集合不一致,RPC 端会按"留存"+"新增"两路处理)。
+        //     0 金额的成员也得传,让 SQL 端决定"软删"还是"UPDATE 成 0"。
+        //
+        // ⚠️⚠️ equal 模式也必须传 splits!
+        //     否则 RPC 端 p_splits=null 会按"原 v_existing 成员集合"自动均分,
+        //     根本不接收新成员集合 → 减员后剩 2 人没删掉,加员后没新增。
+        //     splitPreview 在 equal 模式已经按 form.value.memberIds(新集合)算好,
+        //     直接 map 即可。
+        if (form.value.splitMode === 'custom') {
+          const total = splitTotal.value
+          if (Math.abs(total - amt) > 0.01) {
+            notify.error(`分摊金额合计 ¥${total.toFixed(2)} 与总金额 ¥${amt.toFixed(2)} 不一致，请调整`)
             return
           }
-          // 2) addShared 新整组
-          const add = await store.addShared({
-            splits,
-            payerId: form.value.payerId,
-            categoryId: form.value.categoryId,
-            accountId: form.value.accountId,
-            spentAt: spentAtDate.toISOString(),
-            note: form.value.note.trim().slice(0, 200),
-            tags: form.value.tags
-          })
-          if (add.ok) {
-            markCategoryUsed(familyStore.family?.id, form.value.categoryId)
-            closeForm()
-            notify.success('已更新(成员变动,整组重建)')
-            void statsPanelRef.value?.reload()
-          } else {
-            notify.error(add.message)
-          }
+        }
+        const splits = splitPreview.value
+          .map((s) => ({ memberId: s.memberId, amount: round2(s.amount) }))
+        const r = await store.updateShared({
+          groupId: editingItem!.group_id!,
+          amount: amt,
+          categoryId: form.value.categoryId,
+          accountId: form.value.accountId,
+          payerId: form.value.payerId,
+          spentAt: spentAtDate.toISOString(),
+          note: form.value.note.trim().slice(0, 200),
+          tags: form.value.tags,
+          splits
+        })
+        if (r.ok) {
+          markCategoryUsed(familyStore.family?.id, form.value.categoryId)
+          closeForm()
+          notify.success(r.message)
+          void statsPanelRef.value?.reload()
         } else {
-          // 成员数不变:走 updateShared(RPC 一次性 UPDATE 整组,group_id 稳定)
-          let splits: { memberId: string; amount: number }[] | undefined
-          if (form.value.splitMode === 'custom') {
-            const total = splitTotal.value
-            if (Math.abs(total - amt) > 0.01) {
-              notify.error(`分摊金额合计 ¥${total.toFixed(2)} 与总金额 ¥${amt.toFixed(2)} 不一致，请调整`)
-              return
-            }
-            splits = splitPreview.value
-              .map((s) => ({ memberId: s.memberId, amount: round2(s.amount) }))
-              .filter((s) => s.amount > 0)
-          }
-          const r = await store.updateShared({
-            groupId: editingItem!.group_id!,
-            amount: amt,
-            categoryId: form.value.categoryId,
-            accountId: form.value.accountId,
-            payerId: form.value.payerId,
-            spentAt: spentAtDate.toISOString(),
-            note: form.value.note.trim().slice(0, 200),
-            tags: form.value.tags,
-            splits
-          })
-          if (r.ok) {
-            markCategoryUsed(familyStore.family?.id, form.value.categoryId)
-            closeForm()
-            notify.success(r.message)
-            void statsPanelRef.value?.reload()
-          } else {
-            notify.error(r.message)
-          }
+          notify.error(r.message)
         }
       } else {
         // 单条编辑
@@ -1233,7 +1215,7 @@ const tagSuggestions = computed(() =>
 
           <el-form-item label="付款人" required>
             <el-select v-model="form.payerId" size="default" style="width: 100%">
-              <el-option v-for="m in memberOptions" :key="m.id" :label="m.label" :value="m.id" />
+              <el-option v-for="m in payerOptions" :key="m.id" :label="m.label" :value="m.id" />
             </el-select>
           </el-form-item>
         </div>

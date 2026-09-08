@@ -120,6 +120,10 @@ export const useFamilyStore = defineStore('family', () => {
    */
   async function removeMember(id: string): Promise<{ ok: boolean; message?: string }> {
     const target = members.value.find((m) => m.id === id)
+    // v2026-09-08 "家庭"虚拟成员是公共开销统计维度,不能删(SQL 端无删除防护,靠这里兜底)
+    if (target?.type === 'family') {
+      return { ok: false, message: '「家庭」是公共开销统计维度，不能删除' }
+    }
     if (target?.linked_profile_id) {
       return { ok: false, message: '已关联账号的成员请自行离开家庭后删除' }
     }

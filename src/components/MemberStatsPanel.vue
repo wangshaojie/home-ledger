@@ -133,7 +133,11 @@ watch(
 )
 
 // 决定要不要退化为单图
-const onlyOneMember = computed(() => familyStore.members.length <= 1)
+// v2026-09-08:"家庭"虚拟成员不算真人,单/双图切换只看真人数
+// (backfill 后每家都多了 1 个 family 成员,不过滤会导致单成人家庭变成双图)
+const onlyOneMember = computed(
+  () => familyStore.members.filter((m) => m.type !== 'family').length <= 1
+)
 
 // 总金额
 const payerTotal = computed(() => byPayer.value.reduce((s, x) => s + x.total, 0))

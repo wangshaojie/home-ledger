@@ -65,9 +65,12 @@ export interface AddExpenseArgs {
   // 不传/空 → 默认只有当前用户对应成员一人(通常爸爸)。
   // ID 必须来自 mcp_list_members。
   member_ids?: string[];
+  // v2026-09-07 自由标签(跨分类筛选用,#旅游/#出差/#可报销)。
+  // 留空或不传 → 不打标签;多 tag 用数组形式 ["旅游", "出差"]。
   // 注意:刻意不提供 spent_at——消费时间一律由数据库落"发任务时刻(now)",
   // 避免 AI 自行填错日期(曾出现落成当日 00:00 或错误日期)。
   // 如需补记历史某天,走单独的后备手段,不要在这里放开日期入口。
+  tags?: string[];
 }
 
 export interface AddExpenseResult {
@@ -94,6 +97,8 @@ export async function addExpense(
     // p_spent_at 不传 → 数据库按发任务时刻(now)落库
     p_device_fingerprint: deviceFingerprint ?? null,
     p_member_ids: args.member_ids && args.member_ids.length > 0 ? args.member_ids : null,
+    // v2026-09-07 tags:空数组/不传 都视作无标签
+    p_tags: args.tags && args.tags.length > 0 ? args.tags : [],
   });
   if (error) {
     throw new Error(`记账失败: ${error.message}`);
@@ -118,6 +123,8 @@ export interface ListRecentItem {
   spent_at: string;
   creator_id: string;
   creator_name: string;
+  // v2026-09-07 自由标签
+  tags: string[];
 }
 
 export async function listRecent(token: string, limit = 10): Promise<ListRecentItem[]> {
@@ -174,7 +181,7 @@ export async function listCategories(token: string): Promise<CategoryItem[]> {
 export interface MemberItem {
   id: string;
   name: string;
-  member_type: string; // adult / child / pet
+  member_type: string; // adult / child / pet / family("家庭"虚拟成员,公共开销维度)
   is_me: boolean;
 }
 

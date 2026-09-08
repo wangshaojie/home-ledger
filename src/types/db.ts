@@ -50,12 +50,15 @@ export interface DbExpense {
  * v1.1 家庭成员（不再直接用 profiles 当消费成员）
  * - adult: linked_profile_id 非空，对应一个登录用户
  * - child/pet: linked_profile_id 为 NULL，没有自己的账号，由父母代记账
+ * - family: v2026-09-08 "家庭"虚拟成员（每家一个，由触发器/backfill 自动创建），
+ *   公共开销维度——记账选它则这笔钱不计入任何个人；支持改名（如"家用"），
+ *   不允许删除；付款人下拉排除它（付款必须是真人）
  */
 export interface DbFamilyMember {
   id: string
   family_id: string
   name: string
-  type: 'adult' | 'child' | 'pet'
+  type: 'adult' | 'child' | 'pet' | 'family'
   linked_profile_id: string | null
   created_at: string
   // v2026-09-04 创建者驱离成员用:非空表示已被移出家庭(行保留以支撑历史账单)

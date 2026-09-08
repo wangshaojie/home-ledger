@@ -48,9 +48,11 @@ function createServer(): Server {
           '分类不传→自动归"餐饮";账户不传→自动用"微信支付";' +
           '消费成员不传→默认只有爸爸一人(单选时用单条记录);' +
           '多人共同消费(如全家吃饭)传多个 member_ids → 按人数均分拆成多条记录;' +
+          '公共开销(水电/房租/日用品,不属于任何个人)传"家庭(公共开销)"成员的 member_id;' +
           '付款人固定默认爸爸;消费时间自动=发起记账的时刻(发任务时间)。' +
           '需要分类/成员 ID 时先调 home_ledger_list_categories / home_ledger_list_members 获取,不要凭空编造。' +
-          '拿不准就不传,保持默认。返回 expense_id(多人分摊时返回多条,可逐个删除)。',
+          '拿不准就不传,保持默认。返回 expense_id(多人分摊时返回多条,可逐个删除)。' +
+          '跨分类场景(如旅游)用 tags 数组打自由标签(如 ["旅游"]),App 端高级筛选可按 tag 聚合。',
         inputSchema: {
           type: 'object',
           properties: {
@@ -79,6 +81,15 @@ function createServer(): Server {
                 '消费成员 ID 列表(可选;多人共同消费如全家吃饭/几个人一起 AA 时才填,' +
                 '会按人数均分并拆成多条记录;ID 必须来自 home_ledger_list_members;' +
                 '不传则默认爸爸一人)',
+            },
+            // v2026-09-07 自由标签:跨分类场景用,如旅游/出差/可报销
+            tags: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                '标签数组(可选)。每个 tag 会自动去 # 前缀、trim,单 tag 最长 32 字符,' +
+                '单次记账最多 20 个。例:旅游记 4 笔不同分类,每笔都传 ["旅游"],' +
+                '之后就能在 App 高级筛选里一键汇总这 4 笔。',
             },
           },
           required: ['amount'],
@@ -220,6 +231,8 @@ function createServer(): Server {
           category_id?: string;
           account_id?: string;
           member_ids?: string[];
+          // v2026-09-07 自由标签透传
+          tags?: string[];
         };
         if (typeof a.amount !== 'number' || a.amount <= 0) {
           throw new Error('amount 必须是大于 0 的数字');
@@ -230,6 +243,7 @@ function createServer(): Server {
           category_id: a.category_id,
           account_id: a.account_id,
           member_ids: Array.isArray(a.member_ids) ? a.member_ids : undefined,
+          tags: Array.isArray(a.tags) ? a.tags : undefined,
         }, hostname());
         if (results.length === 1) {
           const r = results[0];
@@ -243,7 +257,10 @@ function createServer(): Server {
                   `日期: ${r.spent_at}\n` +
                   `expense_id: ${r.expense_id}\n` +
                   `家庭: ${r.family_id}\n` +
-                  `创建者: ${r.creator_id}`,
+                  `创建者: ${r.creator_id}` +
+                  (Array.isArray(a.tags) && a.tags.length
+                    ? `\n标签: ${a.tags.map((t) => '#' + t).join(' ')}`
+                    : ''),
               },
             ],
           };
@@ -258,7 +275,10 @@ function createServer(): Server {
               type: 'text',
               text:
                 `✅ 记账成功,已按 ${results.length} 人均分拆条(可对整组分摊分别删除):\n` +
-                `${lines.join('\n')}`,
+                `${lines.join('\n')}` +
+                (Array.isArray(a.tags) && a.tags.length
+                  ? `\n标签: ${a.tags.map((t) => '#' + t).join(' ')}`
+                  : ''),
             },
           ],
         };
@@ -273,7 +293,7 @@ function createServer(): Server {
         }
         const lines = items.map(
           (it) =>
-            `- ${it.spent_at} | ¥${it.amount} | ${it.category_name ?? '未分类'} | ${it.account_name ?? '未指定账户'} | ${it.creator_name ?? '?'} | ${it.note ?? ''} | id=${it.expense_id}`,
+            `- ${it.spent_at} | ¥${it.amount} | ${it.category_name ?? '未分类'} | ${it.account_name ?? '未指定账户'} | ${it.creator_name ?? '?'} | ${it.note ?? ''} | ${(it.tags && it.tags.length) ? it.tags.map((t) => '#' + t).join(' ') : '无标签'} | id=${it.expense_id}`,
         );
         return {
           content: [
@@ -316,7 +336,15 @@ function createServer(): Server {
           return { content: [{ type: 'text', text: '当前家庭还没有成员。' }] };
         }
         const typeLabel = (t: string): string =>
-          t === 'adult' ? '大人' : t === 'child' ? '小孩' : t === 'pet' ? '宠物' : t;
+          t === 'adult'
+            ? '大人'
+            : t === 'child'
+              ? '小孩'
+              : t === 'pet'
+                ? '宠物'
+                : t === 'family'
+                  ? '家庭(公共开销)'
+                  : t;
         const lines = members.map(
           (m) => `- ${m.name} (${typeLabel(m.member_type)})${m.is_me ? ' [我]' : ''} | id=${m.id}`,
         );
