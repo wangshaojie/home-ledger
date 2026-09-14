@@ -1497,10 +1497,7 @@ const tagSuggestions = computed(() =>
   font-weight: 700;
   margin: 0 0 4px;
   letter-spacing: -0.3px;
-  background: linear-gradient(135deg, #1f2329 0%, #4a5160 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--color-text);
 }
 .page-sub {
   color: var(--color-text-soft);
@@ -1508,9 +1505,9 @@ const tagSuggestions = computed(() =>
   margin: 0;
 }
 .add-btn {
-  background: linear-gradient(135deg, #ff8f4d, #f56c2c) !important;
+  background: linear-gradient(135deg, #fb923c, #f97316) !important;
   border: none !important;
-  box-shadow: 0 6px 18px -4px rgba(245, 108, 44, 0.45) !important;
+  box-shadow: 0 6px 18px -4px rgba(251, 146, 60, 0.5) !important;
   border-radius: 12px !important;
   padding: 12px 22px !important;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s !important;
@@ -1530,9 +1527,9 @@ const tagSuggestions = computed(() =>
 }
 .add-btn:hover,
 .add-btn:focus {
-  background: linear-gradient(135deg, #ff9d61, #f5753a) !important;
+  background: linear-gradient(135deg, #fdba74, #fb923c) !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 10px 24px -4px rgba(245, 108, 44, 0.55) !important;
+  box-shadow: 0 10px 24px -4px rgba(251, 146, 60, 0.6) !important;
 }
 .add-btn:hover::after {
   left: 130%;
@@ -1553,11 +1550,11 @@ const tagSuggestions = computed(() =>
   display: flex;
   align-items: center;
   gap: 14px;
-  background: #fff;
+  background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 22px 24px;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 18px rgba(16, 24, 40, 0.05);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1603,17 +1600,17 @@ const tagSuggestions = computed(() =>
 .tone-orange .stat-icon {
   background: var(--color-primary-soft);
   color: var(--color-primary);
-  box-shadow: 0 4px 12px -2px rgba(245, 108, 44, 0.3);
+  box-shadow: 0 4px 12px -2px rgba(251, 146, 60, 0.4);
 }
 .tone-blue .stat-icon {
   background: var(--color-blue-soft);
   color: var(--color-blue);
-  box-shadow: 0 4px 12px -2px rgba(79, 124, 255, 0.3);
+  box-shadow: 0 4px 12px -2px rgba(96, 165, 250, 0.4);
 }
 .tone-green .stat-icon {
   background: var(--color-green-soft);
   color: var(--color-green);
-  box-shadow: 0 4px 12px -2px rgba(47, 181, 95, 0.3);
+  box-shadow: 0 4px 12px -2px rgba(74, 222, 128, 0.4);
 }
 .stat-body { flex: 1; min-width: 0; position: relative; z-index: 1; }
 .stat-label {
@@ -1631,14 +1628,14 @@ const tagSuggestions = computed(() =>
   white-space: nowrap;
 }
 .stat-card.highlight {
-  background: linear-gradient(135deg, #ff8f4d 0%, #f56c2c 100%);
+  background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
   border: none;
   color: #fff;
-  box-shadow: 0 10px 28px -6px rgba(245, 108, 44, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  box-shadow: 0 10px 28px -6px rgba(251, 146, 60, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 .stat-card.highlight::before { display: none; }
 .stat-card.highlight:hover {
-  box-shadow: 0 14px 36px -6px rgba(245, 108, 44, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  box-shadow: 0 14px 36px -6px rgba(251, 146, 60, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 .stat-card.highlight .stat-icon {
   background: rgba(255, 255, 255, 0.22);
@@ -1655,18 +1652,18 @@ const tagSuggestions = computed(() =>
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 12px;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--color-card);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 10px 14px;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+  box-shadow: var(--shadow-xs);
   margin-bottom: 16px;
   transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .filter-bar:hover {
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03), 0 0 0 1px rgba(245, 108, 44, 0.15);
+  box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.2);
 }
 .filter-bar :deep(.el-radio-group) {
   display: flex;
@@ -1692,13 +1689,13 @@ const tagSuggestions = computed(() =>
 }
 .filter-bar :deep(.el-radio-button__inner:hover) {
   color: var(--color-primary) !important;
-  background: rgba(245, 108, 44, 0.06) !important;
+  background: rgba(251, 146, 60, 0.06) !important;
 }
 .filter-bar :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-  background: linear-gradient(135deg, var(--color-primary-soft) 0%, #ffe2d0 100%) !important;
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.18) 0%, rgba(251, 146, 60, 0.08) 100%) !important;
   color: var(--color-primary) !important;
   font-weight: 600 !important;
-  box-shadow: inset 0 0 0 1px rgba(245, 108, 44, 0.2) !important;
+  box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.3) !important;
 }
 .filter-bar :deep(.el-button) {
   border-radius: 10px !important;
@@ -1724,10 +1721,10 @@ const tagSuggestions = computed(() =>
   gap: 8px;
   margin-bottom: 12px;
   padding: 12px 16px;
-  background: linear-gradient(135deg, rgba(245, 108, 44, 0.04) 0%, rgba(245, 108, 44, 0.01) 100%);
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.08) 0%, rgba(251, 146, 60, 0.02) 100%);
   border-radius: var(--radius-md);
-  border: 1px solid rgba(245, 108, 44, 0.15);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+  border: 1px solid rgba(251, 146, 60, 0.2);
+  box-shadow: var(--shadow-xs);
 }
 .active-filters .active-label {
   font-size: 13px;
@@ -1736,18 +1733,19 @@ const tagSuggestions = computed(() =>
 }
 .active-filters :deep(.el-tag) {
   border-radius: 999px !important;
-  background: rgba(255, 255, 255, 0.8) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
   border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
 }
 
 /* === 列表卡片(玻璃 + 行 hover 渐变光带) === */
 .list-card {
   position: relative;
-  background: #fff;
+  background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 6px 0;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 18px rgba(16, 24, 40, 0.05);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 
@@ -1782,16 +1780,16 @@ const tagSuggestions = computed(() =>
   font-size: 13px;
 }
 .list-head {
-  color: var(--color-text-muted);
+  color: var(--color-text-soft);
   font-weight: 600;
-  background: linear-gradient(180deg, #fafbfc 0%, #f4f5f7 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.01) 100%);
   border-bottom: 1px solid var(--color-border);
   font-size: 12px;
   padding: 14px 20px 12px;
   letter-spacing: 0.3px;
 }
 .list-row {
-  border-bottom: 1px solid #f2f3f5;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   transition: background 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
@@ -1810,7 +1808,7 @@ const tagSuggestions = computed(() =>
   transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .list-row:hover {
-  background: linear-gradient(90deg, rgba(245, 108, 44, 0.04) 0%, transparent 100%);
+  background: linear-gradient(90deg, rgba(251, 146, 60, 0.08) 0%, transparent 100%);
 }
 .list-row:hover::before {
   opacity: 1;
@@ -1825,17 +1823,17 @@ const tagSuggestions = computed(() =>
    - 同组 hover → 8% 略深,提示可点击
    - 组内的"分摊"小徽章加深一档,跟浅底协调 */
 .list-row.is-shared {
-  background: rgba(47, 181, 95, 0.04);
+  background: rgba(74, 222, 128, 0.06);
 }
 .list-row.is-shared-first {
-  border-top: 1px solid rgba(47, 181, 95, 0.25);
+  border-top: 1px solid rgba(74, 222, 128, 0.25);
 }
 .list-row.is-shared:hover {
-  background: rgba(47, 181, 95, 0.08);
+  background: rgba(74, 222, 128, 0.12);
 }
 .list-row.is-shared .split-badge {
-  background: rgba(47, 181, 95, 0.18);
-  color: #1f8a4a;
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
 }
 
 /* v2026-09-07 折叠:分摊组的子行(展开后显示)
@@ -1843,15 +1841,15 @@ const tagSuggestions = computed(() =>
    - 仍然用浅绿底延续分组感(色更深一档,跟"汇总行"区分)
    - 不带 is-shared-first 顶线(只有汇总行带) */
 .list-row--group-child {
-  background: rgba(47, 181, 95, 0.07);
+  background: rgba(74, 222, 128, 0.08);
   padding-left: 28px;
 }
 .list-row--group-child:hover {
-  background: rgba(47, 181, 95, 0.12);
+  background: rgba(74, 222, 128, 0.16);
 }
 .child-tree {
   display: inline-block;
-  color: rgba(47, 181, 95, 0.6);
+  color: rgba(74, 222, 128, 0.6);
   font-family: ui-monospace, Consolas, monospace;
   font-size: 11px;
   margin-right: 6px;
@@ -1917,7 +1915,7 @@ const tagSuggestions = computed(() =>
   gap: 4px;
   padding: 3px 10px;
   background: var(--color-primary-soft);
-  border: 1px solid rgba(245, 108, 44, 0.15);
+  border: 1px solid rgba(251, 146, 60, 0.15);
   border-radius: 999px;
   color: var(--color-primary);
   font-size: 12px;
@@ -1984,7 +1982,7 @@ const tagSuggestions = computed(() =>
 }
 .cat-cell {
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--color-card);
   padding: 10px 4px;
   border-radius: 8px;
   cursor: pointer;
@@ -1998,7 +1996,7 @@ const tagSuggestions = computed(() =>
 }
 .cat-cell:hover {
   border-color: var(--color-primary);
-  box-shadow: 0 4px 12px -2px rgba(245, 108, 44, 0.2);
+  box-shadow: 0 4px 12px -2px rgba(251, 146, 60, 0.3);
   transform: translateY(-2px);
   color: var(--color-text);
 }
@@ -2006,7 +2004,7 @@ const tagSuggestions = computed(() =>
   border-color: var(--color-primary);
   background: var(--color-primary-soft);
   color: var(--color-primary);
-  box-shadow: inset 0 0 0 1px var(--color-primary), 0 4px 12px -2px rgba(245, 108, 44, 0.3);
+  box-shadow: inset 0 0 0 1px var(--color-primary), 0 4px 12px -2px rgba(251, 146, 60, 0.35);
 }
 .cat-icon-lg { font-size: 22px; }
 .hint { font-size: 12px; color: var(--color-text-muted); margin-top: 4px; }
@@ -2037,7 +2035,7 @@ const tagSuggestions = computed(() =>
   box-shadow: 0 0 0 1px var(--color-primary) inset !important;
 }
 .amount-input :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 2px var(--color-primary) inset, 0 0 0 4px rgba(245, 108, 44, 0.12) !important;
+  box-shadow: 0 0 0 2px var(--color-primary) inset, 0 0 0 4px rgba(251, 146, 60, 0.12) !important;
 }
 .amount-input :deep(.el-input__prefix) { padding-right: 8px; }
 .amount-prefix {
@@ -2062,7 +2060,7 @@ const tagSuggestions = computed(() =>
   padding: 10px 14px;
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--color-card);
   font-size: 14px;
   color: var(--color-text);
   cursor: pointer;
@@ -2070,13 +2068,13 @@ const tagSuggestions = computed(() =>
 }
 .cat-pick-btn:hover {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(245, 108, 44, 0.08);
+  box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.12);
 }
-.cat-pick-btn.empty { color: #c0c4cc; }
+.cat-pick-btn.empty { color: var(--color-text-muted); }
 .cat-pick-btn.empty:hover { border-color: var(--color-primary); color: var(--color-primary); }
 .cat-pick-icon { font-size: 22px; line-height: 1; }
 .cat-pick-name { font-size: 15px; font-weight: 500; flex: 1; text-align: left; }
-.cat-pick-arrow { color: #c0c4cc; font-size: 14px; }
+.cat-pick-arrow { color: #64748b; font-size: 14px; }
 
 .cat-step {
   max-height: 56vh;
@@ -2100,7 +2098,7 @@ const tagSuggestions = computed(() =>
 }
 .cat-cell-sm {
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--color-card);
   padding: 10px 4px 8px;
   border-radius: 10px;
   cursor: pointer;
@@ -2117,14 +2115,14 @@ const tagSuggestions = computed(() =>
 .cat-cell-sm:hover {
   border-color: var(--color-primary);
   color: var(--color-text);
-  box-shadow: 0 4px 12px -2px rgba(245, 108, 44, 0.2);
+  box-shadow: 0 4px 12px -2px rgba(251, 146, 60, 0.3);
   transform: translateY(-2px);
 }
 .cat-cell-sm.active {
   border-color: var(--color-primary);
   background: var(--color-primary-soft);
   color: var(--color-primary);
-  box-shadow: inset 0 0 0 1px var(--color-primary), 0 4px 12px -2px rgba(245, 108, 44, 0.3);
+  box-shadow: inset 0 0 0 1px var(--color-primary), 0 4px 12px -2px rgba(251, 146, 60, 0.35);
 }
 .cat-icon-md { font-size: 22px; line-height: 1; }
 .cat-name-sm { font-size: 12px; line-height: 1.2; }
@@ -2163,7 +2161,7 @@ const tagSuggestions = computed(() =>
 }
 .split-block :deep(.el-radio-button__inner:hover) {
   color: var(--color-primary) !important;
-  background: rgba(245, 108, 44, 0.06) !important;
+  background: rgba(251, 146, 60, 0.06) !important;
 }
 .split-block :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
   background: var(--color-primary-soft) !important;
@@ -2182,7 +2180,7 @@ const tagSuggestions = computed(() =>
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: rgba(245, 108, 44, 0.03);
+  background: rgba(251, 146, 60, 0.03);
   border-radius: 8px;
 }
 .split-name {
@@ -2201,7 +2199,7 @@ const tagSuggestions = computed(() =>
   padding: 10px 12px;
   background: var(--color-primary-soft);
   border-radius: 10px;
-  border: 1px solid rgba(245, 108, 44, 0.12);
+  border: 1px solid rgba(251, 146, 60, 0.12);
 }
 .split-chip {
   padding: 2px 8px;
@@ -2210,7 +2208,7 @@ const tagSuggestions = computed(() =>
   color: var(--color-primary);
   font-size: 12px;
   font-weight: 500;
-  border: 1px solid rgba(245, 108, 44, 0.15);
+  border: 1px solid rgba(251, 146, 60, 0.15);
 }
 .split-total {
   font-size: 12px;
@@ -2230,7 +2228,7 @@ const tagSuggestions = computed(() =>
   box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.25) !important;
 }
 .home :deep(.el-dialog__header) {
-  background: linear-gradient(135deg, rgba(245, 108, 44, 0.04) 0%, transparent 100%);
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.04) 0%, transparent 100%);
   padding: 20px 24px 16px !important;
   margin-right: 0 !important;
 }
@@ -2246,14 +2244,14 @@ const tagSuggestions = computed(() =>
 .home :deep(.el-dialog__footer .el-button--primary) {
   background: linear-gradient(135deg, #ff8f4d, #f56c2c) !important;
   border: none !important;
-  box-shadow: 0 4px 12px -2px rgba(245, 108, 44, 0.4) !important;
+  box-shadow: 0 4px 12px -2px rgba(251, 146, 60, 0.4) !important;
   border-radius: 10px !important;
   padding: 10px 22px !important;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 .home :deep(.el-dialog__footer .el-button--primary:hover) {
   transform: translateY(-1px) !important;
-  box-shadow: 0 8px 18px -2px rgba(245, 108, 44, 0.5) !important;
+  box-shadow: 0 8px 18px -2px rgba(251, 146, 60, 0.5) !important;
 }
 
 /* 响应式 */

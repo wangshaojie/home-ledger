@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useFamilyStore } from '@/stores/family'
 import { useCategoryStore } from '@/stores/category'
 import { useExpenseStore } from '@/stores/expense'
+import { useThemeStore } from '@/stores/theme'
 import { useRouter } from 'vue-router'
 import { notify } from '@/lib/notify'
 import { displayNameOf } from '@/lib/displayName'
@@ -18,6 +19,7 @@ const auth = useAuthStore()
 const familyStore = useFamilyStore()
 const categoryStore = useCategoryStore()
 const expenseStore = useExpenseStore()
+const themeStore = useThemeStore()
 const router = useRouter()
 
 const editFamilyName = ref(familyStore.family?.name || '')
@@ -389,6 +391,25 @@ async function wipeLocalData() {
     </div>
 
     <div class="section">
+      <div class="section-title"><el-icon><Brush /></el-icon>外观</div>
+      <div class="theme-row">
+        <div class="theme-row-text">
+          <div class="theme-row-label">主题模式</div>
+          <div class="theme-row-hint">深色更护眼,浅色更明亮;登录/注册页面始终使用深色玻璃拟态</div>
+        </div>
+        <el-segmented
+          :model-value="themeStore.mode"
+          :options="[
+            { label: '深色', value: 'dark' },
+            { label: '浅色', value: 'light' }
+          ]"
+          size="default"
+          @change="(v: any) => themeStore.setMode(v)"
+        />
+      </div>
+    </div>
+
+    <div class="section">
       <div class="section-title"><el-icon><User /></el-icon>个人账号</div>
       <div class="info-row">
         <span class="info-icon"><el-icon><Message /></el-icon></span>
@@ -755,18 +776,18 @@ async function wipeLocalData() {
   border: 1px solid var(--color-border);
   border-radius: 10px;
   cursor: pointer;
-  background: #fff;
+  background: var(--color-card);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .icon-choice:hover {
   border-color: var(--color-primary);
   transform: translateY(-2px);
-  box-shadow: 0 4px 10px -2px rgba(245, 108, 44, 0.25);
+  box-shadow: 0 4px 10px -2px rgba(251, 146, 60, 0.25);
 }
 .icon-choice.active {
   border-color: var(--color-primary);
   background: var(--color-primary-soft);
-  box-shadow: 0 0 0 2px rgba(245, 108, 44, 0.18), 0 4px 10px -2px rgba(245, 108, 44, 0.3);
+  box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.18), 0 4px 10px -2px rgba(251, 146, 60, 0.3);
   color: var(--color-primary);
 }
 .icon-input { width: 140px; }
@@ -778,16 +799,7 @@ async function wipeLocalData() {
   gap: 8px 12px;
   margin-bottom: 24px;
 }
-.page-title {
-  font-size: 26px;
-  font-weight: 700;
-  margin: 0 0 4px;
-  letter-spacing: -0.3px;
-  background: linear-gradient(135deg, #1f2329 0%, #4a5160 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+.page-title { font-size: 26px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.3px; color: var(--color-text); }
 .page-sub { color: var(--color-text-soft); font-size: 13px; margin: 0; }
 
 .about-brand {
@@ -799,12 +811,12 @@ async function wipeLocalData() {
   width: 46px;
   height: 46px;
   border-radius: 13px;
-  background: linear-gradient(135deg, #ff8f4d, #f56c2c);
+  background: linear-gradient(135deg, #fb923c, #f97316);
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow:
-    0 4px 12px rgba(245, 108, 44, 0.35),
+    0 4px 12px rgba(251, 146, 60, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
   flex-shrink: 0;
 }
@@ -860,16 +872,16 @@ async function wipeLocalData() {
 }
 
 .section {
-  background: #fff;
+  background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 28px 32px;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 18px rgba(16, 24, 40, 0.05);
+  box-shadow: var(--shadow-card);
   margin-bottom: 16px;
   transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .section:hover {
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 14px 32px rgba(16, 24, 40, 0.08);
+  box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.2), 0 14px 32px rgba(0, 0, 0, 0.4);
 }
 .section-title {
   font-size: 16px;
@@ -912,6 +924,30 @@ async function wipeLocalData() {
   margin: 0 0 12px;
   line-height: 1.6;
 }
+/* v2026-09-14 主题切换 row */
+.theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.theme-row-text {
+  flex: 1;
+  min-width: 220px;
+}
+.theme-row-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+.theme-row-hint {
+  font-size: 12px;
+  color: var(--color-text-soft);
+  line-height: 1.5;
+}
+
 .info-row {
   display: flex;
   align-items: center;
@@ -953,11 +989,11 @@ async function wipeLocalData() {
   font-weight: 700;
   letter-spacing: 4px;
   color: var(--color-primary);
-  background: linear-gradient(135deg, var(--color-primary-soft) 0%, #ffe2d0 100%);
+  background: linear-gradient(135deg, var(--color-primary-soft) 0%, rgba(251, 146, 60, 0.06) 100%);
   padding: 8px 18px;
   border-radius: 999px;
-  border: 1px solid rgba(245, 108, 44, 0.18);
-  box-shadow: 0 4px 12px -4px rgba(245, 108, 44, 0.3);
+  border: 1px solid rgba(251, 146, 60, 0.18);
+  box-shadow: 0 4px 12px -4px rgba(251, 146, 60, 0.3);
 }
 
 .member-row {
@@ -972,8 +1008,8 @@ async function wipeLocalData() {
 }
 .member-row:last-child { margin-bottom: 0; }
 .member-row:hover {
-  background: linear-gradient(90deg, rgba(245, 108, 44, 0.04) 0%, transparent 100%);
-  border-color: rgba(245, 108, 44, 0.12);
+  background: linear-gradient(90deg, rgba(251, 146, 60, 0.04) 0%, transparent 100%);
+  border-color: rgba(251, 146, 60, 0.12);
   transform: translateX(2px);
 }
 .member-actions {
@@ -1017,7 +1053,7 @@ async function wipeLocalData() {
 .role-tag.self {
   background: var(--color-primary-soft);
   color: var(--color-primary);
-  border-color: rgba(245, 108, 44, 0.18);
+  border-color: rgba(251, 146, 60, 0.18);
 }
 .role-tag.child {
   background: var(--color-blue-soft);
@@ -1037,7 +1073,7 @@ async function wipeLocalData() {
 .member-email { color: var(--color-text-soft); font-size: 12px; }
 .empty-mini {
   text-align: center;
-  color: #c0c4cc;
+  color: var(--color-text-muted);
   padding: 30px 0;
   font-size: 13px;
 }
@@ -1052,7 +1088,7 @@ async function wipeLocalData() {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  background: #fff;
+  background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1073,8 +1109,8 @@ async function wipeLocalData() {
 }
 .cat-row:hover {
   transform: translateY(-2px);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 28px rgba(16, 24, 40, 0.08);
-  border-color: rgba(245, 108, 44, 0.25);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 28px rgba(0, 0, 0, 0.08);
+  border-color: rgba(251, 146, 60, 0.25);
 }
 .cat-row:hover::before {
   opacity: 1;
@@ -1121,27 +1157,28 @@ async function wipeLocalData() {
 
 /* 全局按钮升级(主色按钮渐变橙) */
 .settings :deep(.el-button--primary) {
-  background: linear-gradient(135deg, #ff8f4d, #f56c2c) !important;
+  background: linear-gradient(135deg, #fb923c, #f97316) !important;
   border: none !important;
-  box-shadow: 0 4px 12px -2px rgba(245, 108, 44, 0.4) !important;
+  box-shadow: 0 4px 12px -2px rgba(251, 146, 60, 0.4) !important;
   border-radius: 10px !important;
   padding: 9px 18px !important;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 .settings :deep(.el-button--primary:hover) {
   transform: translateY(-1px) !important;
-  box-shadow: 0 8px 18px -2px rgba(245, 108, 44, 0.5) !important;
+  box-shadow: 0 8px 18px -2px rgba(251, 146, 60, 0.5) !important;
 }
 .settings :deep(.el-button--primary.is-plain) {
-  background: rgba(255, 255, 255, 0.6) !important;
-  border: 1px solid var(--color-border-strong) !important;
+  background: var(--color-card-hover) !important;
+  border: 1px solid rgba(251, 146, 60, 0.3) !important;
   color: var(--color-primary) !important;
   box-shadow: none !important;
 }
 .settings :deep(.el-button--primary.is-plain:hover) {
   background: var(--color-primary-soft) !important;
   border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 3px rgba(245, 108, 44, 0.08) !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.15) !important;
 }
 .settings :deep(.el-button--warning.is-plain) {
   background: var(--color-yellow-soft) !important;
@@ -1154,8 +1191,8 @@ async function wipeLocalData() {
 }
 .settings :deep(.el-button--danger.plain),
 .settings :deep(.el-button--danger.is-plain) {
-  background: rgba(245, 108, 44, 0.04) !important;
-  border: 1px solid rgba(245, 108, 44, 0.3) !important;
+  background: rgba(251, 146, 60, 0.04) !important;
+  border: 1px solid rgba(251, 146, 60, 0.3) !important;
   color: var(--color-primary) !important;
 }
 .settings :deep(.el-button--danger.plain:hover),
@@ -1168,7 +1205,7 @@ async function wipeLocalData() {
   border-color: var(--color-border) !important;
 }
 .settings :deep(.el-divider__text) {
-  background: #fff !important;
+  background: var(--color-card) !important;
   color: var(--color-text-muted) !important;
   font-size: 12px;
 }
@@ -1179,7 +1216,7 @@ async function wipeLocalData() {
   box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.25) !important;
 }
 .settings :deep(.el-dialog__header) {
-  background: linear-gradient(135deg, rgba(245, 108, 44, 0.04) 0%, transparent 100%);
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.04) 0%, transparent 100%);
   padding: 20px 24px 16px !important;
   margin-right: 0 !important;
 }

@@ -2,54 +2,100 @@
    家庭记账 · 全局设计系统
    ============================================ */
 :root {
-  /* 品牌主色（暖橙） */
-  --color-primary: #f56c2c;
-  --color-primary-strong: #e35f1a;
-  --color-primary-soft: #fff3ec;
-  --color-primary-grad: linear-gradient(135deg, #ff8f4d 0%, #f56c2c 100%);
+  /* ============================================
+     HomeLedger · 深色主题 v2026-09-14
+     深蓝灰底 + 暖橙强调;整体 OLED-friendly
+     ============================================ */
 
-  /* 辅助强调色 */
-  --color-blue: #4f7cff;
-  --color-blue-soft: #eef2ff;
-  --color-green: #2fb55f;
-  --color-green-soft: #e8f7ee;
-  --color-purple: #8a63f4;
-  --color-purple-soft: #f1edff;
-  --color-yellow: #f5a623;
-  --color-yellow-soft: #fff6e6;
+  /* 品牌主色（暖橙）— 暗色环境下调亮一档,确保对比度 */
+  --color-primary: #fb923c;
+  --color-primary-strong: #f97316;
+  --color-primary-soft: rgba(251, 146, 60, 0.14);
+  --color-primary-grad: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
 
-  /* 中性色 */
-  --color-bg: #f4f5f7;
-  --color-card: #ffffff;
-  --color-border: #eceef1;
-  --color-border-strong: #dfe2e7;
-  --color-text: #1f2329;
-  --color-text-soft: #6b7280;
-  --color-text-muted: #a0a5ad;
+  /* 辅助强调色 — 同样提亮 */
+  --color-blue: #60a5fa;
+  --color-blue-soft: rgba(96, 165, 250, 0.16);
+  --color-green: #4ade80;
+  --color-green-soft: rgba(74, 222, 128, 0.16);
+  --color-purple: #a78bfa;
+  --color-purple-soft: rgba(167, 139, 250, 0.16);
+  --color-yellow: #fbbf24;
+  --color-yellow-soft: rgba(251, 191, 36, 0.16);
+  --color-red: #f87171;
+  --color-red-soft: rgba(248, 113, 113, 0.16);
 
-  /* 阴影层级 */
-  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.04);
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px rgba(16, 24, 40, 0.04);
-  --shadow-card-hover: 0 6px 20px rgba(16, 24, 40, 0.08), 0 2px 6px rgba(16, 24, 40, 0.04);
-  --shadow-float: 0 12px 32px rgba(16, 24, 40, 0.12);
-  --shadow-btn: 0 4px 14px rgba(245, 108, 44, 0.32);
+  /* 中性色 — 暗色底板 + 浅色文字 */
+  --color-bg: #0b1220;                     /* 深蓝灰,跟登录页同体系 */
+  --color-bg-elevated: #111a2e;            /* 略亮一档,用于次级背景 */
+  --color-card: #131c30;                   /* 卡片底色(深蓝灰) */
+  --color-card-hover: #1a2540;             /* 卡片 hover */
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.14);
+  --color-text: #f1f5f9;
+  --color-text-soft: #94a3b8;
+  --color-text-muted: #64748b;
+
+  /* 阴影层级 — 暗色下用更深、更带辉光的阴影 */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(251, 146, 60, 0.18);
+  --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.5);
+  --shadow-btn: 0 6px 18px -4px rgba(251, 146, 60, 0.5);
 
   /* 圆角 */
   --radius-lg: 16px;
   --radius-md: 12px;
   --radius-sm: 8px;
 
-  /* ===== Element Plus 主题同步 ===== */
-  --el-color-primary: #f56c2c;
-  --el-color-primary-light-3: #f5814a;
-  --el-color-primary-light-5: #f8a377;
-  --el-color-primary-light-7: #fbc5a4;
-  --el-color-primary-light-8: #fdd8bf;
-  --el-color-primary-light-9: #feecdf;
-  --el-color-primary-dark-2: #c95717;
+  /* ===== Element Plus 主题同步(深色) ===== */
+  --el-color-primary: #fb923c;
+  --el-color-primary-light-3: #fda665;
+  --el-color-primary-light-5: #fdb98a;
+  --el-color-primary-light-7: #fecfb1;
+  --el-color-primary-light-8: #ffdfc4;
+  --el-color-primary-light-9: rgba(251, 146, 60, 0.14);
+  --el-color-primary-dark-2: #ea7a26;
+  --el-color-success: #4ade80;
+  --el-color-warning: #fbbf24;
+  --el-color-danger: #f87171;
+  --el-color-error: #f87171;
+  --el-color-info: #94a3b8;
+  /* Element Plus dark 主题色板 */
+  --el-bg-color: #131c30;
+  --el-bg-color-page: #0b1220;
+  --el-bg-color-overlay: #1a2540;
+  --el-text-color-primary: #f1f5f9;
+  --el-text-color-regular: #cbd5e1;
+  --el-text-color-secondary: #94a3b8;
+  --el-text-color-placeholder: #64748b;
+  --el-text-color-disabled: #475569;
+  --el-border-color: rgba(255, 255, 255, 0.1);
+  --el-border-color-light: rgba(255, 255, 255, 0.08);
+  --el-border-color-lighter: rgba(255, 255, 255, 0.06);
+  --el-border-color-extra-light: rgba(255, 255, 255, 0.04);
+  --el-border-color-dark: rgba(255, 255, 255, 0.14);
+  --el-border-color-darker: rgba(255, 255, 255, 0.2);
+  --el-fill-color: rgba(255, 255, 255, 0.04);
+  --el-fill-color-light: rgba(255, 255, 255, 0.06);
+  --el-fill-color-lighter: rgba(255, 255, 255, 0.04);
+  --el-fill-color-extra-light: rgba(255, 255, 255, 0.02);
+  --el-fill-color-dark: rgba(255, 255, 255, 0.08);
+  --el-fill-color-darker: rgba(255, 255, 255, 0.12);
+  --el-fill-color-blank: #131c30;
+  --el-mask-color: rgba(0, 0, 0, 0.6);
+  --el-box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --el-box-shadow-light: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --el-box-shadow-lighter: 0 2px 6px rgba(0, 0, 0, 0.2);
+  --el-box-shadow-dark: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --el-disabled-bg-color: rgba(255, 255, 255, 0.04);
+  --el-disabled-text-color: #475569;
+  --el-disabled-border-color: rgba(255, 255, 255, 0.08);
   --el-border-radius-base: 8px;
   --el-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+
+  color-scheme: dark;
 }
 
 html,
@@ -68,20 +114,495 @@ body {
   box-sizing: border-box;
 }
 
-/* 精致滚动条 */
+/* 精致滚动条(暗色) */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d4d7dc;
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #b8bcc4;
+  background: rgba(255, 255, 255, 0.22);
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* ============================================
+   主 App 暗色覆盖(只影响带 .app-main-bg 的容器内)
+   - 登录/注册/Onboarding 等空白页继续走 .dark-page
+   - 主 App 整体不再用浅色 surface
+   ============================================ */
+.app-main-bg {
+  background:
+    radial-gradient(ellipse 80% 50% at 30% 0%, rgba(251, 146, 60, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 100% 100%, rgba(96, 165, 250, 0.06) 0%, transparent 60%),
+    var(--color-bg) !important;
+  color: var(--color-text);
+}
+
+/* ============================================
+   主 App 浅色主题(用户切换)
+   触发:.app-main-bg 容器带 [data-theme="light"] 属性
+   只覆写主 app 用到的颜色变量;Element Plus 主变量保持 dark(避免
+   弹窗组件在 main 切 light 时变浅色,但 inner 内容走 main 自己的 var)
+   ============================================ */
+.app-main-bg[data-theme="light"] {
+  --color-primary: #f56c2c;
+  --color-primary-strong: #e35f1a;
+  --color-primary-soft: #fff3ec;
+  --color-primary-grad: linear-gradient(135deg, #ff8f4d 0%, #f56c2c 100%);
+
+  --color-blue: #4f7cff;
+  --color-blue-soft: #eef2ff;
+  --color-green: #2fb55f;
+  --color-green-soft: #e8f7ee;
+  --color-purple: #8a63f4;
+  --color-purple-soft: #f1edff;
+  --color-yellow: #f5a623;
+  --color-yellow-soft: #fff6e6;
+  --color-red: #e5484d;
+  --color-red-soft: #fdecec;
+
+  --color-bg: #f4f5f7;
+  --color-bg-elevated: #ffffff;
+  --color-card: #ffffff;
+  --color-card-hover: #f7f8fa;
+  --color-border: #eceef1;
+  --color-border-strong: #dfe2e7;
+  --color-text: #1f2329;
+  --color-text-soft: #6b7280;
+  --color-text-muted: #a0a5ad;
+
+  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px rgba(16, 24, 40, 0.04);
+  --shadow-card-hover: 0 6px 20px rgba(16, 24, 40, 0.08), 0 2px 6px rgba(16, 24, 40, 0.04);
+  --shadow-float: 0 12px 32px rgba(16, 24, 40, 0.12);
+  --shadow-btn: 0 4px 14px rgba(245, 108, 44, 0.32);
+
+  /* 重置 Element Plus 文字/边框/背景变量(浅色版)
+     否则 el-collapse/tabs/table 等组件会沿用 :root 的暗色变量,
+     在浅色卡片上出现"白字配白底"看不清 */
+  --el-color-primary: #f56c2c;
+  --el-color-primary-light-3: #f5814a;
+  --el-color-primary-light-5: #f8a377;
+  --el-color-primary-light-7: #fbc5a4;
+  --el-color-primary-light-8: #fdd8bf;
+  --el-color-primary-light-9: #feecdf;
+  --el-color-primary-dark-2: #c95717;
+  --el-color-success: #2fb55f;
+  --el-color-warning: #f5a623;
+  --el-color-danger: #e5484d;
+  --el-color-error: #e5484d;
+  --el-color-info: #909399;
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: #f4f5f7;
+  --el-bg-color-overlay: #ffffff;
+  --el-text-color-primary: #1f2329;
+  --el-text-color-regular: #1f2329;
+  --el-text-color-secondary: #4a5160;
+  --el-text-color-placeholder: #a0a5ad;
+  --el-text-color-disabled: #c0c4cc;
+  --el-border-color: #dfe2e7;
+  --el-border-color-light: #e4e7ed;
+  --el-border-color-lighter: #ebeef5;
+  --el-border-color-extra-light: #f2f6fc;
+  --el-border-color-dark: #d4d7dc;
+  --el-border-color-darker: #c0c4cc;
+  --el-fill-color: #f5f7fa;
+  --el-fill-color-light: #fafafa;
+  --el-fill-color-lighter: #fafbfc;
+  --el-fill-color-extra-light: #fafcff;
+  --el-fill-color-dark: #ebeef5;
+  --el-fill-color-darker: #d6d9de;
+  --el-fill-color-blank: #ffffff;
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-disabled-bg-color: #f5f7fa;
+  --el-disabled-text-color: #c0c4cc;
+  --el-disabled-border-color: #e4e7ed;
+
+  color-scheme: light;
+}
+
+/* 浅色主题下的 .app-main-bg 背景:浅色光斑(比 dark 弱)+ 浅灰底 */
+.app-main-bg[data-theme="light"] {
+  background:
+    radial-gradient(ellipse 80% 50% at 30% 0%, rgba(245, 108, 44, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 100% 100%, rgba(79, 124, 255, 0.04) 0%, transparent 60%),
+    var(--color-bg) !important;
+  color: var(--color-text);
+}
+
+/* 浅色主题:侧边栏底色 + 文字 + 分隔线全部翻浅
+   关键:.sidebar 自身没跟 [data-theme] 走,这里用 [data-theme="light"] .sidebar 选择器
+   让 light 主题下侧边栏走浅色玻璃风(白色半透明 + 深色文字 + 暖橙点缀) */
+.app-main-bg[data-theme="light"] .sidebar {
+  background: linear-gradient(180deg, #ffffff 0%, #f7f8fa 100%);
+  color: var(--color-text);
+  box-shadow: 4px 0 24px rgba(16, 24, 40, 0.06), inset -1px 0 0 rgba(16, 24, 40, 0.04);
+}
+.app-main-bg[data-theme="light"] .sidebar .brand-text {
+  background: linear-gradient(135deg, #1f2329 0%, #4a5160 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.app-main-bg[data-theme="light"] .sidebar .nav-item {
+  color: var(--color-text-soft);
+}
+.app-main-bg[data-theme="light"] .sidebar .nav-item:hover {
+  background: rgba(245, 108, 44, 0.06);
+  color: var(--color-primary);
+}
+/* 浅色主题:active 项文字 + icon 强制白色(暖橙渐变底配白字) */
+.app-main-bg[data-theme="light"] .sidebar .nav-item.active,
+.app-main-bg[data-theme="light"] .sidebar .nav-item.active .nav-icon {
+  color: #fff !important;
+}
+.app-main-bg[data-theme="light"] .sidebar .user-info {
+  color: var(--color-text-muted);
+}
+.app-main-bg[data-theme="light"] .sidebar .user-email {
+  color: var(--color-text);
+}
+.app-main-bg[data-theme="light"] .sidebar-footer :deep(.el-button) {
+  color: var(--color-text-soft);
+}
+.app-main-bg[data-theme="light"] .sidebar-footer :deep(.el-button:hover) {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+.app-main-bg[data-theme="light"] .brand,
+.app-main-bg[data-theme="light"] .sidebar-footer {
+  border-color: var(--color-border);
+}
+
+/* 浅色主题:page-title 渐变回到原版(深色字 + 暖橙渐变),暗色高光不要 */
+.app-main-bg[data-theme="light"] .page-title,
+.app-main-bg[data-theme="light"] .home .page-title,
+.app-main-bg[data-theme="light"] .stats .page-title,
+.app-main-bg[data-theme="light"] .accounts .page-title,
+.app-main-bg[data-theme="light"] .mcp .page-title,
+.app-main-bg[data-theme="light"] .settings .page-title {
+  color: var(--color-text);
+  text-shadow: none;
+  background: linear-gradient(135deg, #1f2329 0%, #4a5160 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 浅色主题:plain 按钮回到原版"半透明白底 + 橙字" */
+.app-main-bg[data-theme="light"] .el-button--primary.is-plain,
+.app-main-bg[data-theme="light"] .el-button--primary.plain {
+  background: rgba(255, 255, 255, 0.6) !important;
+  border: 1px solid var(--color-border-strong) !important;
+  color: var(--color-primary) !important;
+  box-shadow: none !important;
+}
+.app-main-bg[data-theme="light"] .el-button--primary.is-plain:hover,
+.app-main-bg[data-theme="light"] .el-button--primary.plain:hover {
+  background: var(--color-primary-soft) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(245, 108, 44, 0.08) !important;
+}
+.app-main-bg[data-theme="light"] .el-button--danger.is-plain,
+.app-main-bg[data-theme="light"] .el-button--danger.plain {
+  background: #fff !important;
+  border: 1px solid rgba(229, 72, 77, 0.3) !important;
+  color: #e5484d !important;
+}
+.app-main-bg[data-theme="light"] .el-button--warning.is-plain,
+.app-main-bg[data-theme="light"] .el-button--warning.plain {
+  background: #fff !important;
+  border: 1px solid rgba(245, 166, 35, 0.3) !important;
+  color: #f5a623 !important;
+}
+
+/* 主 app 标题渐变 — 暗色版(亮白到暖橙,确保深底可读)
+   用实色打底(--color-text 由主题变量控制),再叠渐变高亮层 */
+.app-main-bg .page-title,
+.home .page-title,
+.stats .page-title,
+.accounts .page-title,
+.mcp .page-title,
+.settings .page-title {
+  color: var(--color-text);  /* 主题变量:深色=白,浅色=深色 */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.app-main-bg .page-title {
+  background: linear-gradient(135deg, currentColor 0%, #fb923c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--color-text);
+}
+
+/* ============================================
+   主 app 内 .el-button--primary.is-plain 暗色兜底
+   浅色主题下 plain = 半透明白底 + 暖橙文字;暗色下背景要换成暗玻璃,
+   避免"亮白底 + 暖橙文字"看不清。hover 仍走 brand 渐变。
+   ============================================ */
+.app-main-bg .el-button--primary.is-plain,
+.app-main-bg .el-button--primary.plain {
+  background: var(--color-card-hover) !important;
+  border: 1px solid rgba(251, 146, 60, 0.3) !important;
+  color: var(--color-primary) !important;
+  box-shadow: none !important;
+}
+.app-main-bg .el-button--primary.is-plain:hover,
+.app-main-bg .el-button--primary.plain:hover {
+  background: var(--color-primary-soft) !important;
+  border-color: var(--color-primary) !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.15) !important;
+}
+/* danger plain / warning plain 同样修复 */
+.app-main-bg .el-button--danger.is-plain,
+.app-main-bg .el-button--danger.plain {
+  background: var(--color-card-hover) !important;
+  border: 1px solid rgba(248, 113, 113, 0.3) !important;
+  color: var(--color-red) !important;
+  box-shadow: none !important;
+}
+.app-main-bg .el-button--danger.is-plain:hover,
+.app-main-bg .el-button--danger.plain:hover {
+  background: var(--color-red-soft) !important;
+  border-color: var(--color-red) !important;
+  color: #fff !important;
+}
+.app-main-bg .el-button--warning.is-plain,
+.app-main-bg .el-button--warning.plain {
+  background: var(--color-card-hover) !important;
+  border: 1px solid rgba(251, 191, 36, 0.3) !important;
+  color: var(--color-yellow) !important;
+  box-shadow: none !important;
+}
+.app-main-bg .el-button--warning.is-plain:hover,
+.app-main-bg .el-button--warning.plain:hover {
+  background: var(--color-yellow-soft) !important;
+  border-color: var(--color-yellow) !important;
+  color: #fff !important;
+}
+
+/* 主 app 通用卡片 surface 暗色覆盖 */
+.app-main-bg .stat-card,
+.app-main-bg .big-stat,
+.app-main-bg .top3,
+.app-main-bg .chart-card,
+.app-main-bg .list-card,
+.app-main-bg .filter-bar,
+.app-main-bg .active-filters,
+.app-main-bg .cat-cell,
+.app-main-bg .cat-cell-sm,
+.app-main-bg .cat-pick-btn,
+.app-main-bg .empty-icon,
+.app-main-bg .el-form-item__label,
+.app-main-bg .settings-section,
+.app-main-bg .settings-card,
+.app-main-bg .account-card,
+.app-main-bg .mc-section,
+.app-main-bg .mc-card,
+.app-main-bg .mc-code-block,
+.app-main-bg .top3 {
+  background: var(--color-card);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+/* stat-card 强调态(高亮大数字)在暗色下保留品牌渐变但加深底 */
+.app-main-bg .stat-card.highlight,
+.app-main-bg .big-stat.highlight {
+  background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
+  color: #fff;
+  border: none;
+}
+
+/* 列表头(暗色微亮) */
+.app-main-bg .list-head {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.01) 100%);
+  color: var(--color-text-soft);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* 行 hover 渐变光带 — 暗色版本 */
+.app-main-bg .list-row:hover {
+  background: linear-gradient(90deg, rgba(251, 146, 60, 0.08) 0%, transparent 100%);
+}
+.app-main-bg .list-row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* 分摊组(深绿) */
+.app-main-bg .list-row.is-shared {
+  background: rgba(74, 222, 128, 0.06);
+}
+.app-main-bg .list-row.is-shared:hover {
+  background: rgba(74, 222, 128, 0.12);
+}
+.app-main-bg .list-row.is-shared .split-badge {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+}
+.app-main-bg .list-row--group-child {
+  background: rgba(74, 222, 128, 0.08);
+}
+.app-main-bg .list-row--group-child:hover {
+  background: rgba(74, 222, 128, 0.16);
+}
+
+/* 统计条/筛选 radio 已选态(暗色版) */
+.app-main-bg .filter-bar :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner),
+.app-main-bg .range-pills :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.18) 0%, rgba(251, 146, 60, 0.08) 100%) !important;
+  color: var(--color-primary) !important;
+  box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.3) !important;
+}
+
+/* active-filters 暖橙底色微调 — 暗色加深 */
+.app-main-bg .active-filters {
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.08) 0%, rgba(251, 146, 60, 0.02) 100%);
+  border-color: rgba(251, 146, 60, 0.2);
+}
+.app-main-bg .active-filters :deep(.el-tag) {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+/* chip(分类/账户)暗色 */
+.app-main-bg .cat-chip {
+  background: rgba(251, 146, 60, 0.12);
+  border-color: rgba(251, 146, 60, 0.25);
+  color: var(--color-primary);
+}
+.app-main-bg .acc-chip {
+  background: rgba(96, 165, 250, 0.12);
+  border-color: rgba(96, 165, 250, 0.25);
+  color: var(--color-blue);
+}
+.app-main-bg .payer-prefix {
+  background: rgba(251, 146, 60, 0.16);
+  color: var(--color-primary);
+}
+
+/* 弹窗/抽屉/MessageBox 暗色 */
+.app-main-bg .el-dialog,
+.app-main-bg .el-message-box,
+.app-main-bg .el-popper,
+.app-main-bg .el-dropdown-menu,
+.app-main-bg .el-select-dropdown,
+.app-main-bg .el-date-picker,
+.app-main-bg .el-picker-panel,
+.app-main-bg .el-tooltip__popper {
+  background: var(--color-card);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+.app-main-bg .el-dialog__title,
+.app-main-bg .el-message-box__title {
+  color: var(--color-text);
+}
+.app-main-bg .el-dialog__body,
+.app-main-bg .el-message-box__content,
+.app-main-bg .el-message-box__message {
+  color: var(--color-text);
+}
+.app-main-bg .el-form-item__label {
+  color: var(--color-text-soft);
+}
+.app-main-bg .el-input__wrapper,
+.app-main-bg .el-textarea__inner,
+.app-main-bg .el-select__wrapper {
+  background: var(--color-bg-elevated) !important;
+  box-shadow: 0 0 0 1px var(--color-border) inset !important;
+  color: var(--color-text) !important;
+}
+.app-main-bg .el-input__wrapper:hover,
+.app-main-bg .el-textarea__inner:hover,
+.app-main-bg .el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--color-border-strong) inset !important;
+}
+.app-main-bg .el-input__wrapper.is-focus,
+.app-main-bg .el-textarea__inner:focus,
+.app-main-bg .el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 1px var(--color-primary) inset, 0 0 0 4px rgba(251, 146, 60, 0.15) !important;
+}
+.app-main-bg .el-input__inner,
+.app-main-bg .el-textarea__inner,
+.app-main-bg .el-select__placeholder {
+  color: var(--color-text) !important;
+}
+.app-main-bg .el-input__inner::placeholder,
+.app-main-bg .el-textarea__inner::placeholder {
+  color: var(--color-text-muted) !important;
+}
+.app-main-bg .el-overlay {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* 表格/Tag 暗色 */
+.app-main-bg .el-tag {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+.app-main-bg .el-tag--success {
+  background: rgba(74, 222, 128, 0.16) !important;
+  border-color: rgba(74, 222, 128, 0.3) !important;
+  color: #4ade80 !important;
+}
+.app-main-bg .el-tag--primary {
+  background: rgba(251, 146, 60, 0.16) !important;
+  border-color: rgba(251, 146, 60, 0.3) !important;
+  color: var(--color-primary) !important;
+}
+.app-main-bg .el-tag--info {
+  background: rgba(148, 163, 184, 0.12) !important;
+  border-color: rgba(148, 163, 184, 0.25) !important;
+  color: var(--color-text-soft) !important;
+}
+
+/* 文字按钮 hover 反馈 */
+.app-main-bg .el-button.is-text:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* switch / segmented 等小控件 */
+.app-main-bg .el-segmented {
+  background: var(--color-bg-elevated) !important;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-soft);
+}
+.app-main-bg .el-segmented__item.is-selected {
+  background: var(--color-card-hover) !important;
+  color: var(--color-text) !important;
+  box-shadow: 0 0 0 1px var(--color-border-strong);
+}
+.app-main-bg .el-loading-mask {
+  background-color: rgba(11, 18, 32, 0.85) !important;
+}
+.app-main-bg .el-loading-spinner .circular {
+  stroke: var(--color-primary);
+}
+.app-main-bg .el-loading-text {
+  color: var(--color-text) !important;
+}
+
+/* 浅色主题:loading 遮罩翻浅,文字保持可读 */
+.app-main-bg[data-theme="light"] .el-loading-mask {
+  background-color: rgba(255, 255, 255, 0.82) !important;
+}
+.app-main-bg[data-theme="light"] .el-loading-spinner .path,
+.app-main-bg[data-theme="light"] .el-loading-spinner .circular {
+  stroke: var(--color-primary) !important;
+}
+.app-main-bg[data-theme="light"] .el-loading-spinner .el-loading-text,
+.app-main-bg[data-theme="light"] .el-loading-text {
+  color: #1f2329 !important;
 }
 
 /* ===== Element Plus 细节微调 ===== */

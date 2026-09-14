@@ -206,30 +206,21 @@ async function copyAutoConfigPrompt() {
   gap: 8px 12px;
   margin-bottom: 24px;
 }
-.page-title {
-  font-size: 26px;
-  font-weight: 700;
-  margin: 0 0 4px;
-  letter-spacing: -0.3px;
-  background: linear-gradient(135deg, #1f2329 0%, #4a5160 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+.page-title { font-size: 26px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.3px; color: var(--color-text); }
 .page-sub { color: var(--color-text-soft); font-size: 13px; margin: 0; }
 
 .section {
   position: relative;
-  background: #fff;
+  background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 28px 32px;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 18px rgba(16, 24, 40, 0.05);
+  box-shadow: var(--shadow-card);
   margin-bottom: 16px;
   transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .section:hover {
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 14px 32px rgba(16, 24, 40, 0.08);
+  box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.2), 0 14px 32px rgba(0, 0, 0, 0.4);
 }
 .section-hint {
   color: var(--color-text-soft);
@@ -240,27 +231,28 @@ async function copyAutoConfigPrompt() {
 .hint { color: var(--color-text-soft); font-size: 12px; margin-top: 4px; }
 
 .mcp :deep(.el-button--primary) {
-  background: linear-gradient(135deg, #ff8f4d, #f56c2c) !important;
+  background: linear-gradient(135deg, #fb923c, #f97316) !important;
   border: none !important;
-  box-shadow: 0 4px 12px -2px rgba(245, 108, 44, 0.4) !important;
+  box-shadow: 0 4px 12px -2px rgba(251, 146, 60, 0.4) !important;
   border-radius: 10px !important;
   padding: 10px 18px !important;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 .mcp :deep(.el-button--primary:hover) {
   transform: translateY(-1px) !important;
-  box-shadow: 0 8px 18px -2px rgba(245, 108, 44, 0.5) !important;
+  box-shadow: 0 8px 18px -2px rgba(251, 146, 60, 0.5) !important;
 }
 .mcp :deep(.el-button--primary.is-plain) {
-  background: rgba(255, 255, 255, 0.6) !important;
-  border: 1px solid var(--color-border-strong) !important;
+  background: var(--color-card-hover) !important;
+  border: 1px solid rgba(251, 146, 60, 0.3) !important;
   color: var(--color-primary) !important;
   box-shadow: none !important;
 }
 .mcp :deep(.el-button--primary.is-plain:hover) {
   background: var(--color-primary-soft) !important;
   border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 3px rgba(245, 108, 44, 0.08) !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.15) !important;
 }
 
 .step-list {
@@ -277,21 +269,21 @@ async function copyAutoConfigPrompt() {
   color: var(--color-text);
   line-height: 1.6;
   padding: 12px 14px;
-  background: linear-gradient(90deg, rgba(245, 108, 44, 0.04) 0%, transparent 100%);
+  background: linear-gradient(90deg, rgba(251, 146, 60, 0.04) 0%, transparent 100%);
   border-radius: 10px;
-  border: 1px solid rgba(245, 108, 44, 0.1);
+  border: 1px solid rgba(251, 146, 60, 0.1);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .step-item:hover {
-  background: linear-gradient(90deg, rgba(245, 108, 44, 0.08) 0%, rgba(245, 108, 44, 0.02) 100%);
-  border-color: rgba(245, 108, 44, 0.2);
+  background: linear-gradient(90deg, rgba(251, 146, 60, 0.08) 0%, rgba(251, 146, 60, 0.02) 100%);
+  border-color: rgba(251, 146, 60, 0.2);
   transform: translateX(2px);
 }
 .step-no {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-primary-soft) 0%, #ffe2d0 100%);
+  background: linear-gradient(135deg, var(--color-primary-soft) 0%, rgba(251, 146, 60, 0.06) 100%);
   color: var(--color-primary);
   font-size: 12px;
   font-weight: 700;
@@ -300,7 +292,7 @@ async function copyAutoConfigPrompt() {
   justify-content: center;
   flex-shrink: 0;
   margin-top: 1px;
-  box-shadow: inset 0 0 0 1px rgba(245, 108, 44, 0.18), 0 2px 6px -1px rgba(245, 108, 44, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.18), 0 2px 6px -1px rgba(251, 146, 60, 0.25);
 }
 .cfg-path {
   font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
@@ -333,7 +325,7 @@ async function copyAutoConfigPrompt() {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(245, 108, 44, 0.3) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(251, 146, 60, 0.3) 50%, transparent 100%);
 }
 .mcp-usage-list {
   margin: 0;
@@ -356,8 +348,8 @@ async function copyAutoConfigPrompt() {
   margin-top: 8px;
 }
 .mcp :deep(.el-collapse-item__header) {
-  background: rgba(245, 108, 44, 0.03) !important;
-  border: 1px solid rgba(245, 108, 44, 0.1) !important;
+  background: rgba(251, 146, 60, 0.03) !important;
+  border: 1px solid rgba(251, 146, 60, 0.1) !important;
   border-radius: 10px !important;
   margin-bottom: 8px !important;
   padding: 0 16px !important;
@@ -366,8 +358,8 @@ async function copyAutoConfigPrompt() {
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 .mcp :deep(.el-collapse-item__header:hover) {
-  background: rgba(245, 108, 44, 0.06) !important;
-  border-color: rgba(245, 108, 44, 0.2) !important;
+  background: rgba(251, 146, 60, 0.06) !important;
+  border-color: rgba(251, 146, 60, 0.2) !important;
 }
 .mcp :deep(.el-collapse-item__wrap) {
   border: none !important;

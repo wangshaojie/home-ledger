@@ -257,16 +257,13 @@ function onDragEnd() {
   font-weight: 700;
   margin: 0 0 4px;
   letter-spacing: -0.3px;
-  background: linear-gradient(135deg, #1f2329 0%, #4a5160 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--color-text);
 }
 .page-sub { color: var(--color-text-soft); font-size: 13px; margin: 0; }
 .add-btn {
-  background: linear-gradient(135deg, #ff8f4d, #f56c2c) !important;
+  background: linear-gradient(135deg, #fb923c, #f97316) !important;
   border: none !important;
-  box-shadow: 0 6px 18px -4px rgba(245, 108, 44, 0.45) !important;
+  box-shadow: 0 6px 18px -4px rgba(251, 146, 60, 0.45) !important;
   border-radius: 12px !important;
   padding: 12px 22px !important;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
@@ -288,21 +285,21 @@ function onDragEnd() {
 .add-btn:focus {
   background: linear-gradient(135deg, #ff9d61, #f5753a) !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 10px 24px -4px rgba(245, 108, 44, 0.55) !important;
+  box-shadow: 0 10px 24px -4px rgba(251, 146, 60, 0.55) !important;
 }
 .add-btn:hover::after { left: 130%; }
 .add-btn:active { transform: translateY(0) !important; }
 
 .section {
-  background: #fff;
+  background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 28px 32px;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 18px rgba(16, 24, 40, 0.05);
+  box-shadow: var(--shadow-card);
   transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .section:hover {
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 14px 32px rgba(16, 24, 40, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 14px 32px rgba(0, 0, 0, 0.08);
 }
 .section-head {
   display: flex;
@@ -360,7 +357,7 @@ function onDragEnd() {
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: #fff;
+  background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s;
@@ -382,8 +379,8 @@ function onDragEnd() {
 }
 .acc-row:hover {
   transform: translateY(-2px);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 28px rgba(16, 24, 40, 0.08), 0 0 0 1px rgba(245, 108, 44, 0.25);
-  border-color: rgba(245, 108, 44, 0.35);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 28px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(251, 146, 60, 0.25);
+  border-color: rgba(251, 146, 60, 0.35);
 }
 .acc-row:hover::before {
   opacity: 1;
@@ -428,7 +425,7 @@ function onDragEnd() {
 .acc-row:hover .acc-row-icon { transform: scale(1.08) rotate(-4deg); }
 .acc-row-icon.is-default {
   background: var(--color-primary-soft);
-  box-shadow: 0 4px 10px -2px rgba(245, 108, 44, 0.3);
+  box-shadow: 0 4px 10px -2px rgba(251, 146, 60, 0.3);
 }
 .acc-row-info {
   flex: 1;
@@ -461,7 +458,7 @@ function onDragEnd() {
   padding: 1px 8px;
   border-radius: 999px;
   font-weight: 600;
-  border: 1px solid rgba(245, 108, 44, 0.18);
+  border: 1px solid rgba(251, 146, 60, 0.18);
 }
 .acc-actions {
   display: inline-flex;
@@ -508,18 +505,18 @@ function onDragEnd() {
   border: 1px solid var(--color-border);
   border-radius: 10px;
   cursor: pointer;
-  background: #fff;
+  background: var(--color-card);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .icon-choice:hover {
   border-color: var(--color-primary);
   transform: translateY(-2px);
-  box-shadow: 0 4px 10px -2px rgba(245, 108, 44, 0.25);
+  box-shadow: 0 4px 10px -2px rgba(251, 146, 60, 0.25);
 }
 .icon-choice.active {
   border-color: var(--color-primary);
   background: var(--color-primary-soft);
-  box-shadow: 0 0 0 2px rgba(245, 108, 44, 0.18), 0 4px 10px -2px rgba(245, 108, 44, 0.3);
+  box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.18), 0 4px 10px -2px rgba(251, 146, 60, 0.3);
   color: var(--color-primary);
 }
 .icon-input { width: 140px; }
@@ -530,7 +527,7 @@ function onDragEnd() {
   box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.25) !important;
 }
 .accounts :deep(.el-dialog__header) {
-  background: linear-gradient(135deg, rgba(245, 108, 44, 0.04) 0%, transparent 100%);
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.04) 0%, transparent 100%);
   padding: 20px 24px 16px !important;
   margin-right: 0 !important;
 }
@@ -543,16 +540,16 @@ function onDragEnd() {
   border-top: 1px solid var(--color-border);
 }
 .accounts :deep(.el-dialog__footer .el-button--primary) {
-  background: linear-gradient(135deg, #ff8f4d, #f56c2c) !important;
+  background: linear-gradient(135deg, #fb923c, #f97316) !important;
   border: none !important;
-  box-shadow: 0 4px 12px -2px rgba(245, 108, 44, 0.4) !important;
+  box-shadow: 0 4px 12px -2px rgba(251, 146, 60, 0.4) !important;
   border-radius: 10px !important;
   padding: 10px 22px !important;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 .accounts :deep(.el-dialog__footer .el-button--primary:hover) {
   transform: translateY(-1px) !important;
-  box-shadow: 0 8px 18px -2px rgba(245, 108, 44, 0.5) !important;
+  box-shadow: 0 8px 18px -2px rgba(251, 146, 60, 0.5) !important;
 }
 
 /* 可访问性 */

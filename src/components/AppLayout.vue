@@ -5,15 +5,23 @@
  * - 主区：暖色径向背景 + 柔光光斑
  */
 import { useRouter, useRoute, RouterView } from 'vue-router'
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useFamilyStore } from '@/stores/family'
+import { useThemeStore } from '@/stores/theme'
 
 const auth = useAuthStore()
 const familyStore = useFamilyStore()
+const themeStore = useThemeStore()
 const router = useRouter()
 const route = useRoute()
+
+// v2026-09-14:theme store 创建时的 applyToDom() 早于 .app-shell 挂载,
+// 这里补同步一次,避免"store 是浅色、DOM 还是暗色"的错位(图表配色会跟着错)
+onMounted(() => {
+  themeStore.syncDom()
+})
 
 const navItems = [
   { name: 'home', label: '记账', icon: 'Notebook' },
@@ -122,13 +130,13 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
 .sidebar {
   position: relative;
   width: 220px;
-  background: linear-gradient(180deg, #1f2329 0%, #131419 100%);
+  background: linear-gradient(180deg, #0b1220 0%, #0a0f1c 100%);
   color: #fff;
   display: flex;
   flex-direction: column;
   padding: 20px 0;
   flex-shrink: 0;
-  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5), inset -1px 0 0 rgba(255, 255, 255, 0.04);
   overflow: hidden;
 }
 /* 侧边栏右上角橙色光晕 */
@@ -139,7 +147,7 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
   width: 220px;
   height: 220px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(245, 108, 44, 0.35) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(251, 146, 60, 0.4) 0%, transparent 70%);
   filter: blur(40px);
   pointer-events: none;
   animation: sidebar-glow-float 12s ease-in-out infinite;
@@ -163,12 +171,12 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
   width: 38px;
   height: 38px;
   border-radius: 11px;
-  background: linear-gradient(135deg, #ff8f4d, #f56c2c);
+  background: linear-gradient(135deg, #fb923c, #f97316);
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow:
-    0 4px 12px rgba(245, 108, 44, 0.45),
+    0 4px 12px rgba(251, 146, 60, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
   flex-shrink: 0;
   position: relative;
@@ -213,7 +221,7 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
   padding: 12px 16px;
   border: none;
   background: transparent;
-  color: #9aa0ab;
+  color: #94a3b8;
   border-radius: 10px;
   cursor: pointer;
   font-size: 15px;
@@ -223,16 +231,16 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
   overflow: hidden;
 }
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
   transform: translateX(2px);
 }
 .nav-item.active {
-  background: linear-gradient(135deg, #ff8f4d, #f56c2c);
+  background: linear-gradient(135deg, #fb923c, #f97316);
   color: #fff;
   font-weight: 600;
   box-shadow:
-    0 4px 14px rgba(245, 108, 44, 0.4),
+    0 4px 14px rgba(251, 146, 60, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 .nav-item.active::before {
@@ -276,10 +284,10 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
 }
 .user-info {
   font-size: 12px;
-  color: #7c828d;
+  color: #64748b;
 }
 .user-email {
-  color: #d4d6da;
+  color: #cbd5e1;
   font-size: 13px;
   margin-bottom: 3px;
   overflow: hidden;
@@ -288,15 +296,15 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
   max-width: 180px;
 }
 .sidebar-footer :deep(.el-button) {
-  color: #9aa0ab;
+  color: #94a3b8;
   border-radius: 8px;
   padding: 6px 10px;
   transition: all 0.18s;
   justify-content: flex-start;
 }
 .sidebar-footer :deep(.el-button:hover) {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.07);
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.06);
 }
 .logout-btn :deep(.el-icon) {
   transition: transform 0.2s;

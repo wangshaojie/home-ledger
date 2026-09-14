@@ -1,0 +1,64 @@
+## UI Pro Max Search Results
+**Domain:** typography | **Query:** professional dashboard modern
+**Source:** typography.csv | **Found:** 5 results
+
+### Result 1
+- **Font Pairing Name:** Dashboard Data
+- **Category:** Mono + Sans
+- **Heading Font:** Fira Code
+- **Body Font:** Fira Sans
+- **Mood/Style Keywords:** dashboard, data, analytics, code, technical, precise
+- **Best For:** Dashboards, analytics, data visualization, admin panels
+- **Google Fonts URL:** https://fonts.google.com/share?selection.family=Fira+Code:wght@400;500;600;700|Fira+Sans:wght@300;400;500;600;700
+- **CSS Import:** @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+- **Tailwind Config:** fontFamily: { mono: ['Fira Code', 'monospace'], sans: ['Fira Sans', 'sans-serif'] }
+- **Notes:** Fira family cohesion. Code for data, Sans for labels.
+
+### Result 2
+- **Font Pairing Name:** Modern Professional
+- **Category:** Sans + Sans
+- **Heading Font:** Poppins
+- **Body Font:** Open Sans
+- **Mood/Style Keywords:** modern, professional, clean, corporate, friendly, approachable
+- **Best For:** SaaS, corporate sites, business apps, startups, professional services
+- **Google Fonts URL:** https://fonts.google.com/share?selection.family=Open+Sans:wght@300;400;500;600;700|Poppins:wght@400;500;600;700
+- **CSS Import:** @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+- **Tailwind Config:** fontFamily: { heading: ['Poppins', 'sans-serif'], body: ['Open Sans', 'sans-serif'] }
+- **Notes:** Geometric Poppins for headings, humanist Open Sans for readability.
+
+### Result 3
+- **Font Pairing Name:** Korean Modern
+- **Category:** Sans + Sans
+- **Heading Font:** Noto Sans KR
+- **Body Font:** Noto Sans KR
+- **Mood/Style Keywords:** korean, modern, clean, professional, multilingual, readable
+- **Best For:** Korean sites, K-beauty, K-pop, Korean businesses, multilingual
+- **Google Fonts URL:** https://fonts.google.com/share?selection.family=Noto+Sans+KR:wght@300;400;500;700
+- **CSS Import:** @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+- **Tailwind Config:** fontFamily: { sans: ['Noto Sans KR', 'sans-serif'] }
+- **Notes:** Clean Korean typography. Single font with weight variations.
+
+### Result 4
+- **Font Pairing Name:** Hebrew Modern
+- **Category:** Sans + Sans
+- **Heading Font:** Noto Sans Hebrew
+- **Body Font:** Noto Sans Hebrew
+- **Mood/Style Keywords:** hebrew, modern, RTL, clean, professional, readable
+- **Best For:** Hebrew sites, Israeli market, Jewish content, bilingual sites
+- **Google Fonts URL:** https://fonts.google.com/share?selection.family=Noto+Sans+Hebrew:wght@300;400;500;700
+- **CSS Import:** @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@300;400;500;700&display=swap');
+- **Tailwind Config:** fontFamily: { sans: ['Noto Sans Hebrew', 'sans-serif'] }
+- **Notes:** RTL support. Clean modern Hebrew typography.
+
+### Result 5
+- **Font Pairing Name:** Chinese Simplified
+- **Category:** Sans + Sans
+- **Heading Font:** Noto Sans SC
+- **Body Font:** Noto Sans SC
+- **Mood/Style Keywords:** chinese, simplified, modern, professional, multilingual, readable
+- **Best For:** Simplified Chinese sites, mainland China market, business apps
+- **Google Fonts URL:** https://fonts.google.com/share?selection.family=Noto+Sans+SC:wght@300;400;500;700
+- **CSS Import:** @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+- **Tailwind Config:** fontFamily: { sans: ['Noto Sans SC', 'sans-serif'] }
+- **Notes:** Simplified Chinese support. Clean modern look.
+

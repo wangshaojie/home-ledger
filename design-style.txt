@@ -1,0 +1,64 @@
+## UI Pro Max Search Results
+**Domain:** style | **Query:** dark dashboard minimal sidebar data
+**Source:** styles.csv | **Found:** 5 results
+
+### Result 1
+- **Style Category:** Data-Dense Dashboard
+- **Type:** BI/Analytics
+- **Keywords:** Multiple charts/widgets, data tables, KPI cards, minimal padding, grid layout, space-efficient, maximum data visibility
+- **Primary Colors:** Neutral primary (light grey/white #F5F5F5), data colors (blue/green/red), dark text #333333
+- **Effects & Animation:** Hover tooltips, chart zoom on click, row highlighting on hover, smooth filter animations, data loading spinners
+- **Best For:** Business intelligence dashboards, financial analytics, enterprise reporting, operational dashboards, data warehousing
+- **Performance:** 鈿?Excellent
+- **Accessibility:** 鉁?WCAG AA
+- **Framework Compatibility:** None
+- **Complexity:** None
+
+### Result 2
+- **Style Category:** Dark Mode (OLED)
+- **Type:** General
+- **Keywords:** Dark theme, low light, high contrast, deep black, midnight blue, eye-friendly, OLED, night mode, power efficient
+- **Primary Colors:** Deep Black #000000, Dark Grey #121212, Midnight Blue #0A0E27
+- **Effects & Animation:** Minimal glow (text-shadow: 0 0 10px), dark-to-light transitions, low white emission, high readability, visible focus
+- **Best For:** Night-mode apps, coding platforms, entertainment, eye-strain prevention, OLED devices, low-light
+- **Performance:** 鈿?Excellent
+- **Accessibility:** 鉁?WCAG AAA
+- **Framework Compatibility:** Tailwind 10/10, MUI 10/10, Chakra 10/10
+- **Complexity:** Low
+
+### Result 3
+- **Style Category:** Executive Dashboard
+- **Type:** BI/Analytics
+- **Keywords:** High-level KPIs, large key metrics, minimal detail, summary view, trend indicators, at-a-glance insights, executive summary
+- **Primary Colors:** Brand colors, professional palette (blue/grey/white), accent for KPIs, red for alerts/concerns
+- **Effects & Animation:** KPI value animations (count-up), trend arrow direction animations, metric card hover lift, alert pulse effect
+- **Best For:** C-suite dashboards, business summary reports, decision-maker dashboards, strategic planning views
+- **Performance:** 鈿?Excellent
+- **Accessibility:** 鉁?WCAG AA
+- **Framework Compatibility:** None
+- **Complexity:** None
+
+### Result 4
+- **Style Category:** Cyberpunk UI
+- **Type:** General
+- **Keywords:** Neon, dark mode, terminal, HUD, sci-fi, glitch, dystopian, futuristic, matrix, tech noir
+- **Primary Colors:** #00FF00 (Matrix Green), #FF00FF (Magenta), #00FFFF (Cyan), #0D0D0D (Dark)
+- **Effects & Animation:** Neon glow (text-shadow), glitch animations (skew/offset), scanlines (::before overlay), terminal fonts
+- **Best For:** Gaming platforms, tech products, crypto apps, sci-fi applications, developer tools, entertainment
+- **Performance:** 鈿?Moderate
+- **Accessibility:** 鈿?Limited (dark+neon)
+- **Framework Compatibility:** Tailwind 8/10, Custom CSS 10/10
+- **Complexity:** Medium
+
+### Result 5
+- **Style Category:** Drill-Down Analytics
+- **Type:** BI/Analytics
+- **Keywords:** Hierarchical data exploration, expandable sections, interactive drill-down paths, summary-to-detail flow, context preservation
+- **Primary Colors:** Primary brand, breadcrumb colors, drill-level indicator colors, hierarchy depth colors
+- **Effects & Animation:** Drill-down expand animations, breadcrumb click transitions, smooth detail reveal, level change smooth, data reload animation
+- **Best For:** Sales analytics, product analytics, funnel analysis, multi-dimensional data exploration, business intelligence
+- **Performance:** 鈿?Good
+- **Accessibility:** 鉁?WCAG AA
+- **Framework Compatibility:** None
+- **Complexity:** None
+

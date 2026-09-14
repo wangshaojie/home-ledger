@@ -23,9 +23,15 @@ import { useFamilyStore } from '@/stores/family'
 import { displayNameOf } from '@/lib/displayName'
 import { rangeStartIso } from '@/lib/dateRange'
 import { useAnimatedNumber } from '@/lib/useAnimatedNumber'
+import { useChartTheme } from '@/lib/useChartTheme'
 
 use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, TitleComponent, LegendComponent])
-provide(THEME_KEY, 'light')
+
+// v2026-09-14:图表配色统一以"真实渲染主题"为准(DOM data-theme + store 双信号),
+// 详见 @/lib/useChartTheme
+const { isLight, themeName } = useChartTheme()
+// echarts 内置 light / dark 主题:未显式设色的部分(如默认文字)跟着它走
+provide(THEME_KEY, themeName)
 
 const expenseStore = useExpenseStore()
 const familyStore = useFamilyStore()
@@ -135,9 +141,20 @@ watch(
 // 决定要不要退化为单图
 // v2026-09-08:"家庭"虚拟成员不算真人,单/双图切换只看真人数
 // (backfill 后每家都多了 1 个 family 成员,不过滤会导致单成人家庭变成双图)
+//
+// v2026-09-14:成员列表由 App.vue bootstrap 异步拉,首屏时 members 还是 []
+//   ——"真人 0 个"会被误判成单成员家庭,于是 loading 阶段先渲染一个整宽单图,
+//   members 到位后又跳成两列双图(用户看到的就是"加载中只有一个长图表")。
+//   所以成员列表没到之前统一按双图布局渲染骨架,不做单图退化。
+const membersPending = computed(() => familyStore.members.length === 0 && !familyStore.family)
 const onlyOneMember = computed(
-  () => familyStore.members.filter((m) => m.type !== 'family').length <= 1
+  () =>
+    !membersPending.value &&
+    familyStore.members.filter((m) => m.type !== 'family').length <= 1
 )
+
+// 面板整体是否处于加载中:聚合请求 + 成员列表等待都算
+const panelLoading = computed(() => statsLoading.value || membersPending.value)
 
 // 总金额
 const payerTotal = computed(() => byPayer.value.reduce((s, x) => s + x.total, 0))
@@ -175,8 +192,8 @@ function formatBarLabel(v: number) {
   return '¥' + Math.round(v)
 }
 
-// 成员色板：与全局 --color-primary / --color-{blue,green,purple,yellow} 保持一致
-const MEMBER_COLORS = ['#f56c2c', '#4f7cff', '#2fb55f', '#8a63f4', '#f5a623', '#00b8a9', '#e05a9c']
+// 成员色板：与全局 --color-primary / --color-{blue,green,purple,yellow} 保持一致(暗色版,提亮)
+const MEMBER_COLORS = ['#fb923c', '#60a5fa', '#4ade80', '#a78bfa', '#fbbf24', '#2dd4bf', '#f472b6']
 
 // 同一成员在"按付款人 / 按消费成员"两张图中保持同一颜色（按 memberId 稳定映射，而非数组下标）
 const memberColorMap = new Map<string, number>()
@@ -215,11 +232,26 @@ function barGradient(color: string) {
   }
 }
 
-// 横向 bar 配置
+// v2026-09-14 图表配色:light / dark 两套,跟 StatsView 的 themeColors 保持一致
+function chartPalette(light: boolean) {
+  return {
+    axisLine: light ? '#dfe2e7' : 'rgba(255,255,255,0.18)',
+    splitLine: light ? '#eceef1' : 'rgba(255,255,255,0.08)',
+    // 暗色下文字统一提到接近纯白,保证在深蓝灰卡片上的对比度
+    axisLabelColor: light ? '#6b7280' : '#e2e8f0',
+    yAxisLabelColor: light ? '#4a5160' : '#f1f5f9',
+    labelColor: light ? '#1f2329' : '#ffffff',
+    barShadow: light ? 'rgba(15,23,42,0.10)' : 'rgba(0,0,0,0.35)'
+  }
+}
+
 function buildOption(rows: MemberAgg[], total: number, title: string) {
   // 按金额降序
   const sorted = [...rows].sort((a, b) => b.total - a.total)
+  const light = isLight.value
+  const c = chartPalette(light)
   return {
+    backgroundColor: 'transparent',
     // 数据更新动画：切换筛选/记账时柱状图平滑过渡
     animation: true,
     animationDuration: 450,
@@ -231,6 +263,13 @@ function buildOption(rows: MemberAgg[], total: number, title: string) {
     grid: { left: 40, right: 90, top: 30, bottom: 30, containLabel: true },
     tooltip: {
       trigger: 'item',
+      backgroundColor: light ? 'rgba(255, 255, 255, 0.96)' : 'rgba(20, 21, 32, 0.95)',
+      borderColor: light ? '#dfe2e7' : 'transparent',
+      textStyle: { color: light ? '#1f2329' : '#fff', fontSize: 12 },
+      padding: [10, 14],
+      extraCssText: light
+        ? 'border-radius: 10px; box-shadow: 0 8px 24px rgba(16,24,40,0.12);'
+        : 'border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);',
       formatter: (p: any) => {
         const v = (p.value as number) || 0
         return `${p.name}<br/>¥${v.toFixed(2)}（${total > 0 ? ((v / total) * 100).toFixed(1) : '0.0'}%）`
@@ -238,11 +277,17 @@ function buildOption(rows: MemberAgg[], total: number, title: string) {
     },
     xAxis: {
       type: 'value',
-      axisLabel: { formatter: (v: number) => '¥' + v.toFixed(0) }
+      axisLine: { lineStyle: { color: c.axisLine } },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: c.splitLine } },
+      axisLabel: { color: c.axisLabelColor, formatter: (v: number) => '¥' + v.toFixed(0) }
     },
     yAxis: {
       type: 'category',
       data: sorted.map((r) => r.name),
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: c.yAxisLabelColor, fontWeight: 500 },
       inverse: true
     },
     series: [
@@ -257,12 +302,14 @@ function buildOption(rows: MemberAgg[], total: number, title: string) {
         })),
         itemStyle: {
           borderRadius: [0, 6, 6, 0],
-          shadowColor: 'rgba(15, 23, 42, 0.10)',
-          shadowBlur: 6
+          shadowColor: c.barShadow,
+          shadowBlur: 8
         },
         label: {
           show: true,
           position: 'right',
+          color: c.labelColor,
+          fontWeight: 600,
           formatter: (p: any) => formatBarLabel(p.value as number)
         }
       }
@@ -270,9 +317,19 @@ function buildOption(rows: MemberAgg[], total: number, title: string) {
   }
 }
 
-const payerOption = computed(() => buildOption(byPayer.value, payerTotal.value, '按付款人'))
-const memberOption = computed(() => buildOption(byMember.value, memberTotal.value, '按消费成员'))
-const singleOption = computed(() => buildOption(byMember.value, singleTotal.value, '总支出'))
+// isLight 由 useChartTheme 提供(DOM data-theme + store.mode 双信号),它变化时重算 option
+const payerOptionThemed = computed(() => {
+  void isLight.value
+  return buildOption(byPayer.value, payerTotal.value, '按付款人')
+})
+const memberOptionThemed = computed(() => {
+  void isLight.value
+  return buildOption(byMember.value, memberTotal.value, '按消费成员')
+})
+const singleOptionThemed = computed(() => {
+  void isLight.value
+  return buildOption(byMember.value, singleTotal.value, '总支出')
+})
 </script>
 
 <template>
@@ -283,18 +340,18 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
 
     <div v-if="onlyOneMember" class="single-chart">
       <div
-        v-loading="statsLoading"
+        v-loading="panelLoading"
         element-loading-text="数据加载中…"
         class="chart-box"
       >
         <v-chart
-          v-if="byMember.length > 0"
+          v-if="byMember.length > 0 && !membersPending"
           class="chart"
-          :option="singleOption"
+          :option="singleOptionThemed"
           :init-options="{ renderer: 'canvas' }"
           @click="(p: any) => onBarClick(p.data?.memberId)"
         />
-        <div v-else-if="!statsLoading" class="empty-tip">本月还没有支出数据</div>
+        <div v-else-if="!panelLoading" class="empty-tip">本月还没有支出数据</div>
       </div>
       <div class="single-total">
         <div class="label">总支出</div>
@@ -309,18 +366,18 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
           <span class="total">¥{{ payerTotalDisplay.toFixed(2) }}</span>
         </div>
         <div
-          v-loading="statsLoading"
+          v-loading="panelLoading"
           element-loading-text="数据加载中…"
           class="chart-box"
         >
           <v-chart
-            v-if="byPayer.length > 0"
+            v-if="byPayer.length > 0 && !membersPending"
             class="chart"
-            :option="payerOption"
+            :option="payerOptionThemed"
             :init-options="{ renderer: 'canvas' }"
             @click="(p: any) => onBarClick(p.data?.memberId)"
           />
-          <div v-else-if="!statsLoading" class="empty-tip">本月还没有支出数据</div>
+          <div v-else-if="!panelLoading" class="empty-tip">本月还没有支出数据</div>
         </div>
         <div class="hint">点击柱子查看该付款人的账单</div>
       </div>
@@ -330,18 +387,18 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
           <span class="total">¥{{ memberTotalDisplay.toFixed(2) }}</span>
         </div>
         <div
-          v-loading="statsLoading"
+          v-loading="panelLoading"
           element-loading-text="数据加载中…"
           class="chart-box"
         >
           <v-chart
-            v-if="byMember.length > 0"
+            v-if="byMember.length > 0 && !membersPending"
             class="chart"
-            :option="memberOption"
+            :option="memberOptionThemed"
             :init-options="{ renderer: 'canvas' }"
             @click="(p: any) => onBarClick(p.data?.memberId)"
           />
-          <div v-else-if="!statsLoading" class="empty-tip">本月还没有支出数据</div>
+          <div v-else-if="!panelLoading" class="empty-tip">本月还没有支出数据</div>
         </div>
         <div class="hint">点击柱子查看该消费成员的账单</div>
       </div>
@@ -351,7 +408,7 @@ const singleOption = computed(() => buildOption(byMember.value, singleTotal.valu
 
 <style scoped>
 .member-stats-panel {
-  background: #fff;
+  background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 20px;

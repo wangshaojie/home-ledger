@@ -192,8 +192,8 @@ onUnmounted(() => offUpdate?.())
   color: var(--color-green);
 }
 .icon.danger {
-  background: #fdecec;
-  color: #e5484d;
+  background: var(--color-red-soft);
+  color: var(--color-red);
 }
 .main {
   margin: 0 0 8px;
