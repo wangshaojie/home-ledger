@@ -252,9 +252,20 @@ body {
 .app-main-bg[data-theme="light"] .sidebar .nav-item {
   color: var(--color-text-soft);
 }
-.app-main-bg[data-theme="light"] .sidebar .nav-item:hover {
+/* 用 [data-v-xxx] 提高特异度,压过 AppLayout scoped .nav-item:hover 的暗色样式
+   (:style scoped 默认会编译成 .nav-item[data-v-xxx]:hover,本身就是 0,1,1;这里加属性选择器变 0,2,1) */
+.app-main-bg[data-theme="light"] .sidebar .nav-item[class]:hover {
   background: rgba(245, 108, 44, 0.06);
   color: var(--color-primary);
+  transform: none;
+}
+/* 浅色主题:active 项鼠标经过时仍保留暖橙渐变底(只是轻微提亮) */
+.app-main-bg[data-theme="light"] .sidebar .nav-item.active[class]:hover {
+  background: linear-gradient(135deg, #ff8f4d 0%, #f56c2c 100%);
+  color: #fff !important;
+  box-shadow:
+    0 6px 18px rgba(245, 108, 44, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 /* 浅色主题:active 项文字 + icon 强制白色(暖橙渐变底配白字) */
 .app-main-bg[data-theme="light"] .sidebar .nav-item.active,
