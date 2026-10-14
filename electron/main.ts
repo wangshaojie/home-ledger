@@ -354,6 +354,11 @@ ipcMain.handle('app:download-update', async () => {
   }
 })
 
+// 渲染进程拿当前 app 版本号（用于在登录页/侧边栏 brand 后展示）
+ipcMain.handle('app:get-version', () => {
+  return { version: app.getVersion() }
+})
+
 // 渲染进程"立即重启并安装"
 ipcMain.handle('app:quit-and-install', async () => {
   if (VITE_DEV_SERVER_URL) return { ok: false, message: '开发模式不支持' }

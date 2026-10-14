@@ -46,6 +46,19 @@ const canSubmit = computed(
   () => emailValid.value && password.value.length >= 6 && !submitting.value
 )
 
+// app 版本号(主进程 IPC 拿,登录前就能显示,提示用户当前是不是最新)
+const appVersion = ref('')
+onMounted(async () => {
+  try {
+    if (window.electronAPI?.getAppVersion) {
+      const r = await window.electronAPI.getAppVersion()
+      appVersion.value = r?.version || ''
+    }
+  } catch {
+    /* ignore */
+  }
+})
+
 const reduceMotion = ref(false)
 let mq: MediaQueryList | null = null
 function onMqChange(e: MediaQueryListEvent) {
@@ -162,7 +175,10 @@ function goForgot() {
           <div class="logo-shine-bar" aria-hidden="true"></div>
         </div>
         <h1 class="title">
-          <span class="title-cn">家庭记账</span>
+          <span class="title-row">
+            <span class="title-cn">家庭记账</span>
+            <span v-if="appVersion" class="title-version" :title="`当前版本 v${appVersion}`">v{{ appVersion }}</span>
+          </span>
           <span class="title-en">HOME LEDGER</span>
         </h1>
         <p class="subtitle">邮箱 + 密码登录</p>

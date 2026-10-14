@@ -101,6 +101,13 @@ onMounted(() => {
   if (window.electronAPI?.onUpdateEvent) {
     offUpdate = window.electronAPI.onUpdateEvent((payload) => show(payload))
   }
+  // 组件挂载即主动 check 一次(无论用户在哪个路由:登录、Onboarding、AppLayout 都覆盖)
+  // 主进程启动 3s 后也会自动 check,这里是兜底:用户在主进程第一次 check 之后才进入 app 的场景
+  if (window.electronAPI?.checkForUpdates) {
+    window.electronAPI.checkForUpdates().catch(() => {
+      /* 主进程 IPC 自带 try/catch,这里再吞一次保险 */
+    })
+  }
 })
 onUnmounted(() => offUpdate?.())
 </script>
@@ -112,6 +119,7 @@ onUnmounted(() => offUpdate?.())
     width="420px"
     :close-on-click-modal="false"
     append-to-body
+    class="update-dialog"
   >
     <div class="update-body">
       <!-- 发现新版本 -->

@@ -249,6 +249,11 @@ body {
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+.app-main-bg[data-theme="light"] .sidebar .brand-version {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  border-color: rgba(245, 108, 44, 0.3);
+}
 .app-main-bg[data-theme="light"] .sidebar .nav-item {
   color: var(--color-text-soft);
 }
@@ -621,6 +626,13 @@ body {
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
+/* 更新弹窗(append-to-body)z-index 顶到最高,确保在登录/Onboarding 等全屏页也能压住所有覆盖层 */
+body > .el-overlay:has(.update-dialog) {
+  z-index: 99999 !important;
+}
+body > .el-overlay:has(.update-dialog) .el-dialog {
+  z-index: 99999 !important;
+}
 .el-dialog__header {
   margin-right: 0;
   padding: 20px 24px 8px;
@@ -889,6 +901,23 @@ body {
   font-weight: 500;
   letter-spacing: 4px;
   color: var(--text-muted);
+}
+.dark-page .title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.dark-page .title-version {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(251, 146, 60, 0.16);
+  color: #fed7aa;
+  border: 1px solid rgba(251, 146, 60, 0.28);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .dark-page .subtitle {
   margin: 8px 0 0;

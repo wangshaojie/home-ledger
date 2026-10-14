@@ -12,6 +12,8 @@ export type UpdateEventPayload =
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   version: process.versions.electron,
+  /** 当前 app 版本号(package.json version,生产模式来自打包元数据) */
+  getAppVersion: () => ipcRenderer.invoke('app:get-version'),
   /**
    * 改密流程：主进程一站式处理（生成 OTP + 发邮件），渲染进程拿不到 code
    * - accessToken: 当前 Supabase session 的 access_token（前端用 supabase.auth.getSession() 拿）

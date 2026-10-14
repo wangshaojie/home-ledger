@@ -27,6 +27,8 @@ type UpdateEventPayload =
 interface ElectronAPI {
   platform: NodeJS.Platform
   version: string
+  /** 当前 app 版本号(从主进程 app.getVersion() 拿) */
+  getAppVersion: () => Promise<{ version: string }>
   /**
    * 触发改密 OTP 流程（主进程内部完成 OTP 生成 + 邮件发送，渲染进程拿不到 code）
    */

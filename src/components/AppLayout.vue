@@ -5,7 +5,7 @@
  * - 主区：暖色径向背景 + 柔光光斑
  */
 import { useRouter, useRoute, RouterView } from 'vue-router'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useFamilyStore } from '@/stores/family'
@@ -16,6 +16,19 @@ const familyStore = useFamilyStore()
 const themeStore = useThemeStore()
 const router = useRouter()
 const route = useRoute()
+
+// app 版本号(主进程 IPC 拿;web/dev 模式没 preload 时 fallback 到 package.json)
+const appVersion = ref('')
+onMounted(async () => {
+  try {
+    if (window.electronAPI?.getAppVersion) {
+      const r = await window.electronAPI.getAppVersion()
+      appVersion.value = r?.version || ''
+    }
+  } catch {
+    /* ignore */
+  }
+})
 
 // v2026-09-14:theme store 创建时的 applyToDom() 早于 .app-shell 挂载,
 // 这里补同步一次,避免"store 是浅色、DOM 还是暗色"的错位(图表配色会跟着错)
@@ -82,6 +95,7 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
           </svg>
         </span>
         <span class="brand-text">{{ familyStore.family?.name || '家庭记账' }}</span>
+        <span v-if="appVersion" class="brand-version" :title="`当前版本 v${appVersion}`">v{{ appVersion }}</span>
       </div>
 
       <nav class="nav-list">
@@ -202,6 +216,21 @@ const familyName = computed(() => familyStore.family?.name || '未命名家庭')
   letter-spacing: 0.5px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.brand-version {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(251, 146, 60, 0.18);
+  color: #fed7aa;
+  border: 1px solid rgba(251, 146, 60, 0.28);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
